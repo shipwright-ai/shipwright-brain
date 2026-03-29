@@ -190,6 +190,22 @@ export function create({ title, summary, content, kind, parent, tags, refs, by }
   return memFile;
 }
 
+function computeFacets(items) {
+  const tagCounts = {};
+  const statusCounts = { "not-started": 0, "in-progress": 0, "done": 0, "no-progress": 0 };
+  for (const m of items) {
+    const tags = m.tags || [];
+    for (const t of tags) tagCounts[t] = (tagCounts[t] || 0) + 1;
+    const p = m.aggregateProgress || m.progress;
+    if (p) statusCounts[p.status]++;
+    else statusCounts["no-progress"]++;
+  }
+  return {
+    tags: Object.entries(tagCounts).map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count),
+    status: statusCounts,
+  };
+}
+
 export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags } = {}) {
   if (!pathOrKind) {
     if (!cacheReady) return { level: "root", kinds: [...knownKinds].sort().map(k => ({ kind: k })) };
@@ -218,7 +234,9 @@ export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags } 
     if (filterTags && filterTags.length) items = items.filter(m => filterTags.some(t => m.tags.includes(t)));
     items.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
     const total = items.length;
-    return { level: "memory", memory_file: pathOrKind, title: entry.title, children: items.slice(offset, offset + limit), total, hasMore: offset + limit < total };
+    const result = { level: "memory", memory_file: pathOrKind, title: entry.title, children: items.slice(offset, offset + limit), total, limit, offset, hasMore: offset + limit < total };
+    if (offset === 0) result.facets = computeFacets(items);
+    return result;
   }
   let items = [];
   for (const e of cache.values()) {
@@ -228,7 +246,9 @@ export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags } 
   if (filterTags && filterTags.length) items = items.filter(m => filterTags.some(t => m.tags.includes(t)));
   items.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
   const total = items.length;
-  return { level: "kind", kind: pathOrKind, memories: items.slice(offset, offset + limit), total, hasMore: offset + limit < total };
+  const result = { level: "kind", kind: pathOrKind, memories: items.slice(offset, offset + limit), total, limit, offset, hasMore: offset + limit < total };
+  if (offset === 0) result.facets = computeFacets(items);
+  return result;
 }
 
 export function search({ queries, tags, kind, status, limit = 20, offset = 0 }) {
@@ -245,7 +265,9 @@ export function search({ queries, tags, kind, status, limit = 20, offset = 0 }) 
     results.push({ memory_file: e.memory_file, title: e.title, summary: e.summary, kind: e.kind, tags: e.tags, progress: e.progress, aggregateProgress: e.aggregateProgress, at: e.at, modified: e.modified });
   }
   const total = results.length;
-  return { memories: results.slice(offset, offset + limit), total, hasMore: offset + limit < total };
+  const result = { memories: results.slice(offset, offset + limit), total, limit, offset, hasMore: offset + limit < total };
+  if (offset === 0) result.facets = computeFacets(results);
+  return result;
 }
 
 export async function screenshot(url, { name, memoryFile } = {}) {
