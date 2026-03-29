@@ -133,7 +133,7 @@ const memDir=mf.replace(/\\/memory\\.md$/,'');
 let h='<div class="detail"><div class="dtitle">'+esc(m.title)+'</div>';
 if(m.summary)h+='<div class="dsum">'+esc(m.summary)+'</div>';
 h+='<div class="dmeta"><span class="tag">'+esc(m.kind)+'</span>'+tags+'</div>';
-h+='<div class="dby">by '+esc(m.by||'?')+' · '+(m.at?new Date(m.at).toLocaleDateString():'')+'</div>';
+h+='<div class="dby">by '+esc(m.by||'?')+' · created '+(m.at?new Date(m.at).toLocaleDateString():'?')+(m.modified?' · modified '+new Date(m.modified).toLocaleDateString():'')+'</div>';
 if(m.content){
 let c=esc(m.content);
 c=c.replace(/!\\[([^\\]]*)\\]\\(([^)]+)\\)/g,(_, alt, src)=>{
@@ -142,9 +142,9 @@ return '<img alt="'+alt+'" src="'+resolved+'" style="max-width:100%;border-radiu
 h+='<div class="dcontent">'+c+'</div>'}
 if(refs)h+='<div class="refs"><div class="refs-label">References</div>'+refs+'</div>';
 if(atts.length){h+='<div class="refs"><div class="refs-label">Attachments</div>';
-for(const a of atts){const isImg=/\\.(png|jpg|jpeg|gif|svg|webp)$/i.test(a);
-if(isImg)h+='<img src="/file?p='+encodeURIComponent(a)+'" style="max-width:200px;border-radius:8px;border:1px solid #27272a;margin:.25rem">';
-else h+='<span class="tag">'+esc(a.split('/').pop())+'</span>'}
+for(const a of atts){const af=typeof a==='string'?a:a.file;const isImg=/\\.(png|jpg|jpeg|gif|svg|webp)$/i.test(af);
+if(isImg)h+='<img src="/file?p='+encodeURIComponent(af)+'" style="max-width:200px;border-radius:8px;border:1px solid #27272a;margin:.25rem">';
+else h+='<span class="tag">'+esc(af.split('/').pop())+'</span>'}
 h+='</div>'}
 if(children.length){h+='<div class="children-section"><div class="children-label">Sub-memories</div>'+renderList(children)+'</div>'}
 h+='</div>';
@@ -220,7 +220,7 @@ const server = http.createServer(async (req, res) => {
     const content = brain.readContent(f);
     const children = (entry.children || []).map(cf => {
       const c = brain.getEntry(cf);
-      return c ? { memory_file: c.memory_file, title: c.title, summary: c.summary, tags: c.tags, progress: c.progress, aggregateProgress: c.aggregateProgress, children: c.children.length } : null;
+      return c ? { memory_file: c.memory_file, title: c.title, summary: c.summary, tags: c.tags, progress: c.progress, aggregateProgress: c.aggregateProgress, children: c.children.length, at: c.at, modified: c.modified } : null;
     }).filter(Boolean);
     return json(res, { ...entry, content, children });
   }
