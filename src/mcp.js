@@ -103,11 +103,12 @@ Do NOT pass content — the response tells you the file path and format to write
 
 server.tool(
   "browse_memories",
-  `Browse the memory tree. Three levels, max 20 per call, filterable by tags.
-No path: kinds with counts (filtered by tags if provided).
+  `Browse the memory tree. Three levels, max 20 per call, filterable by tags and status.
+No path: kinds with counts (filtered by tags/status if provided).
 Kind string: memories in that kind.
 memory_file: sub-memories of that memory.
-Tags filter at every level — only show memories matching any of the given tags.`,
+Tags filter at every level — only show memories matching any of the given tags.
+Check brain://overview for available tags before filtering.`,
   {
     path: z.string().optional().describe('Kind string (e.g. "decisions") or memory_file. Omit for top-level.'),
     tags: z.array(z.string()).optional().describe("Filter by tags (any match)"),
@@ -148,6 +149,7 @@ Searches title, summary, tags, kind, slug from cache. Returns max 20 results per
 Use offset to paginate. To read full content, open the memory_file directly.
 Filter by status to find actionable items: "not-started", "in-progress", or "done".
 Status is auto-detected from checkboxes: 0/N = not-started, some = in-progress, all = done.
+Check brain://overview for available tags and kinds before filtering.
 When the developer asks "what should I do next?" or similar:
   1. Search with status "in-progress" first — finish what's started
   2. Then status "not-started" — pick up new work
