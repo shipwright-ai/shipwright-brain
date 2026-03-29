@@ -216,12 +216,16 @@ function walkDir(dir) {
 
 function parseContentLinks(content, memFile) {
   // Find markdown links pointing to memory.md files in content
+  const memDir = path.dirname(memFile);
   const links = [];
   const re = /\[([^\]]*)\]\(([^)]*memory\.md)\)/g;
   let m;
   while ((m = re.exec(content)) !== null) {
     const target = m[2];
-    if (target !== memFile && !target.startsWith("http")) links.push(target);
+    if (target.startsWith("http")) continue;
+    // Resolve relative paths against the memory's directory
+    const resolved = target.startsWith("docs/") ? target : path.join(memDir, target);
+    if (resolved !== memFile) links.push(resolved);
   }
   return links;
 }

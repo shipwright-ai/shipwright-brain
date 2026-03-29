@@ -239,13 +239,17 @@ const server = http.createServer(async (req, res) => {
       const r = brain.getEntry(rf);
       return r ? { memory_file: r.memory_file, title: r.title, summary: r.summary, kind: r.kind, tags: r.tags, progress: r.progress, aggregateProgress: r.aggregateProgress } : { memory_file: rf, deleted: true };
     });
-    // Expand inline memory links in content
+    // Expand inline memory links in content — resolve relative paths
+    const memDir = path.dirname(f);
     const contentLinkRe = /\[([^\]]*)\]\(([^)]*memory\.md)\)/g;
     const contentLinks = [];
     let match;
     while ((match = contentLinkRe.exec(content || "")) !== null) {
       const [full, label, target] = match;
-      const r = brain.getEntry(target);
+      // Try as-is first (absolute from project root), then resolve relative to memory dir
+      let r = brain.getEntry(target);
+      const resolved = r ? target : path.join(memDir, target);
+      if (!r) r = brain.getEntry(resolved);
       contentLinks.push(r
         ? { label, memory_file: r.memory_file, title: r.title, summary: r.summary, kind: r.kind, progress: r.progress }
         : { label, memory_file: target, deleted: true });
