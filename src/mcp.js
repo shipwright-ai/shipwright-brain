@@ -61,40 +61,97 @@ server.resource(
   }
 );
 
+const FORMAT_GUIDES = {
+  ideas: `Write as a checklist — each step is a checkbox:
+\`\`\`
+> Context: what prompted this idea, date
+
+- [ ] First concrete step
+- [ ] Second step
+- [ ] Third step
+\`\`\`
+3–6 checkboxes. Don't over-plan. Check boxes off as work progresses.`,
+  bugs: `Write as a checklist — each fix/investigation step is a checkbox:
+\`\`\`
+> Observed: what's broken
+> Expected: what should happen
+> Context: how it was discovered, date
+
+- [ ] Reproduce the issue
+- [ ] Identify root cause
+- [ ] Implement fix
+- [ ] Verify fix
+\`\`\``,
+  features: `Write as a checklist — each deliverable is a checkbox:
+\`\`\`
+> Context: why this feature, who needs it, date
+
+- [ ] First deliverable
+- [ ] Second deliverable
+- [ ] Tests / validation
+\`\`\``,
+  work: `Write as a checklist — each task is a checkbox:
+\`\`\`
+> Context: what this work is about, date
+
+- [ ] First task
+- [ ] Second task
+- [ ] Verify / review
+\`\`\``,
+};
+const DEFAULT_FORMAT = `Write as a knowledge document — prose with structure:
+\`\`\`
+## Background
+Why this matters, context.
+
+## Key Points
+The actual knowledge — decisions, reasoning, details.
+
+## References
+Links, related memories, sources.
+\`\`\``;
+
+function getFormatGuide(kind) {
+  if (!kind) return DEFAULT_FORMAT;
+  const k = kind.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return FORMAT_GUIDES[k] || DEFAULT_FORMAT;
+}
+
 server.tool(
   "create_memory",
-  `Create a new memory. Brain creates folder, writes frontmatter + content, syncs refs.
+  `Create a new memory. Brain creates folder + frontmatter, then YOU write the content.
 Without parent: creates at docs/{kind}/{slug}/memory.md.
 With parent: nests inside the parent's folder as a sub-memory.
 Provide a one-sentence summary for browsing.
-Returns the memory_file path.`,
+Do NOT pass content — the response tells you the file path and format to write directly.`,
   {
     title: z.string().describe("Short descriptive title"),
     summary: z.string().describe("One sentence — what someone needs to know without reading the content"),
-    content: z.string().describe("Full content in markdown"),
     kind: z.string().optional().describe("Top-level folder name. Any string works — new kind = new folder. Common: decisions, ideas, personas, features, patterns, bugs, architecture, learnings. Not needed if parent is set."),
     parent: z.string().optional().describe("Parent memory_file to nest under. Omit for top-level."),
     by: z.string().describe("Who: developer, reviewer, researcher, orchestrator"),
     tags: z.array(z.string()).optional().describe("Tags for filtering"),
     refs: z.array(z.string()).optional().describe('Related memory_file paths'),
   },
-  async ({ title, summary, content, kind, parent, by, tags, refs }) => {
+  async ({ title, summary, kind, parent, by, tags, refs }) => {
     const existingKinds = new Set(brain.getKinds());
     const existingTags = new Set(Object.keys(brain.allTags()));
 
-    const memFile = brain.create({ title, summary, content, kind, parent, tags, refs, by });
+    const memFile = brain.create({ title, summary, content: "", kind, parent, tags, refs, by });
     if (!memFile) return { content: [{ type: "text", text: "Failed — parent not found." }] };
 
-    let text = memFile;
+    const effectiveKind = kind || (parent ? "sub-memory" : "memories");
+    let text = `Created: ${memFile}`;
     const slugKind = kind ? kind.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : null;
     if (slugKind && !existingKinds.has(slugKind)) text += `\nNew kind: ${slugKind}`;
     const newTags = (tags || []).map(t => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")).filter(t => t && !existingTags.has(t));
     if (newTags.length) text += `\nNew tags: ${newTags.join(", ")}`;
 
     text += `\n\n⚠ NEXT STEPS — do these now before moving on:`;
-    text += `\n- [ ] Attach screenshots/images from this conversation using brain.attach_to_memory (memory_file: "${memFile}")`;
+    text += `\n- [ ] Write content to ${memFile} in this format:\n\n${getFormatGuide(effectiveKind)}`;
+    text += `\n\n- [ ] Attach screenshots/images from this conversation using brain.attach_to_memory (memory_file: "${memFile}")`;
     text += `\n- [ ] Attach any other relevant files (designs, logs, etc.)`;
-    text += `\n- [ ] Skip if no assets exist — but check first, don't assume`;
+    text += `\n- [ ] Skip attachments if no assets exist — but check first, don't assume`;
 
     return { content: [{ type: "text", text }] };
   }
