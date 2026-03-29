@@ -1,8 +1,12 @@
 import matter from "gray-matter";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
+import { fileURLToPath } from "url";
 
-let DOCS_DIR, PROJECT_ROOT;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+let DOCS_DIR, PROJECT_ROOT, CACHE_FILE;
 const cache = new Map();
 let cacheReady = false;
 const knownKinds = new Set();
@@ -10,6 +14,13 @@ const knownKinds = new Set();
 export function init(docsDir, projectRoot) {
   DOCS_DIR = path.resolve(docsDir);
   PROJECT_ROOT = projectRoot || path.resolve(".");
+
+  // Cache file lives in brain's own dir, keyed by project path hash
+  const hash = crypto.createHash("md5").update(DOCS_DIR).digest("hex").slice(0, 12);
+  const cacheDir = path.join(__dirname, "..", ".cache");
+  fs.mkdirSync(cacheDir, { recursive: true });
+  CACHE_FILE = path.join(cacheDir, `${hash}.jsonl`);
+
   fs.mkdirSync(DOCS_DIR, { recursive: true });
   scanKinds();
   setImmediate(() => { rebuildCache(); startWatcher(); });
@@ -62,11 +73,95 @@ function recomputeAllAggregates() {
   }
 }
 
+// --- Cache persistence (JSONL) ---
+
+function loadDiskCache() {
+  if (!fs.existsSync(CACHE_FILE)) return null;
+  try {
+    const lines = fs.readFileSync(CACHE_FILE, "utf-8").trim().split("\n");
+    if (!lines.length) return null;
+    const meta = JSON.parse(lines[0]);
+    if (!meta._meta) return null;
+    const entries = [];
+    for (let i = 1; i < lines.length; i++) {
+      try { entries.push(JSON.parse(lines[i])); } catch {}
+    }
+    return { meta, entries };
+  } catch { return null; }
+}
+
+function saveDiskCache() {
+  const meta = { _meta: true, lastUpdate: new Date().toISOString(), docsDir: DOCS_DIR };
+  const lines = [JSON.stringify(meta)];
+  for (const e of cache.values()) {
+    lines.push(JSON.stringify(e));
+  }
+  fs.writeFileSync(CACHE_FILE, lines.join("\n") + "\n", "utf-8");
+}
+
+function updateDiskCacheEntry(memFile) {
+  // Rewrite the full file — JSONL doesn't support in-place line updates efficiently
+  // For typical project sizes (<1000 memories) this is fine
+  saveDiskCache();
+}
+
 function rebuildCache() {
   cache.clear();
-  if (fs.existsSync(DOCS_DIR)) walkDir(DOCS_DIR);
+
+  // Try to restore from disk cache first
+  const disk = loadDiskCache();
+  if (disk && disk.entries.length > 0) {
+    const lastUpdate = disk.meta.lastUpdate;
+    let restored = 0, stale = 0, missing = 0;
+
+    // Load cached entries, verify each file still exists
+    for (const entry of disk.entries) {
+      const absFile = abs(entry.memory_file);
+      if (!fs.existsSync(absFile)) { missing++; continue; }
+
+      // Check if file changed since cache was written
+      const mtime = fs.statSync(absFile).mtime.toISOString();
+      if (mtime > lastUpdate) {
+        // File changed — re-parse it
+        const absDir = path.dirname(absFile);
+        loadEntry(absDir);
+        stale++;
+      } else {
+        // File unchanged — use cached entry
+        cache.set(entry.memory_file, entry);
+        if (entry.kind) knownKinds.add(entry.kind);
+        restored++;
+      }
+    }
+
+    // Scan for new files not in cache
+    const newFiles = [];
+    if (fs.existsSync(DOCS_DIR)) findNewFiles(DOCS_DIR, newFiles);
+    for (const absDir of newFiles) loadEntry(absDir);
+
+    console.error(`[brain] Cache restored: ${restored} cached, ${stale} updated, ${missing} removed, ${newFiles.length} new`);
+  } else {
+    // No disk cache — full scan
+    if (fs.existsSync(DOCS_DIR)) walkDir(DOCS_DIR);
+    console.error(`[brain] Full scan: ${cache.size} entries loaded`);
+  }
+
   recomputeAllAggregates();
+  saveDiskCache();
   cacheReady = true;
+}
+
+function findNewFiles(dir, results) {
+  for (const e of fs.readdirSync(dir)) {
+    if (e.startsWith(".")) continue;
+    const full = path.join(dir, e);
+    if (!fs.statSync(full).isDirectory()) continue;
+    if (fs.existsSync(path.join(full, "memory.md"))) {
+      const memFile = rel(path.join(full, "memory.md"));
+      if (!cache.has(memFile)) results.push(full);
+    }
+    findNewFiles(full, results);
+  }
 }
 
 function walkDir(dir) {
@@ -177,7 +272,11 @@ function startWatcher() {
         const pd = path.dirname(absDir);
         if (fs.existsSync(path.join(pd, "memory.md"))) loadEntry(pd);
         recomputeAggregateChain(memFile);
-      } else { cache.delete(rel(path.join(absDir, "memory.md"))); }
+        updateDiskCacheEntry(memFile);
+      } else {
+        cache.delete(rel(path.join(absDir, "memory.md")));
+        updateDiskCacheEntry(null);
+      }
     });
   } catch {}
 }
@@ -240,6 +339,7 @@ export function create({ title, summary, content, kind, parent, tags, refs, by }
   loadEntry(finalDir);
   syncRefs(memFile, refs);
   if (parent) { const pd = path.dirname(abs(parent)); if (fs.existsSync(path.join(pd, "memory.md"))) loadEntry(pd); }
+  saveDiskCache();
   return memFile;
 }
 
@@ -398,6 +498,7 @@ export function remove(memFile) {
   if (entry.parent) loadEntry(path.dirname(path.dirname(abs(memFile))));
   const kindDir = path.join(DOCS_DIR, entry.kind);
   if (fs.existsSync(kindDir) && fs.readdirSync(kindDir).length === 0) fs.rmdirSync(kindDir);
+  saveDiskCache();
   return true;
 }
 
