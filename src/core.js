@@ -452,12 +452,14 @@ function sortItems(items, sort) {
 export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags, status, sort } = {}) {
   if (!pathOrKind) {
     if (!cacheReady) return { level: "root", kinds: [...knownKinds].sort().map(k => ({ kind: k })) };
-    const counts = {};
+    const directCounts = {};
+    const totalCounts = {};
     const kindProgress = {};
     for (const e of cache.values()) {
       if (filterTags && filterTags.length && !filterTags.some(t => e.tags.includes(t))) continue;
       if (!matchesStatus(e, status)) continue;
-      counts[e.kind] = (counts[e.kind] || 0) + 1;
+      totalCounts[e.kind] = (totalCounts[e.kind] || 0) + 1;
+      if (e.depth === 2) directCounts[e.kind] = (directCounts[e.kind] || 0) + 1;
       const p = e.aggregateProgress || e.progress;
       if (p) {
         if (!kindProgress[e.kind]) kindProgress[e.kind] = { checked: 0, total: 0 };
@@ -465,10 +467,10 @@ export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags, s
         kindProgress[e.kind].total += p.total;
       }
     }
-    return { level: "root", kinds: Object.entries(counts).map(([k, n]) => {
+    return { level: "root", kinds: Object.entries(totalCounts).map(([k, n]) => {
       const p = kindProgress[k];
       const progress = p ? { checked: p.checked, total: p.total, status: p.checked === p.total ? "done" : p.checked === 0 ? "not-started" : "in-progress" } : null;
-      return { kind: k, count: n, progress };
+      return { kind: k, count: directCounts[k] || 0, totalCount: n, progress };
     }).sort((a, b) => a.kind.localeCompare(b.kind)) };
   }
   if (pathOrKind.endsWith("memory.md")) {
