@@ -93,7 +93,7 @@ Do NOT pass content — the response tells you the file path and format to write
       }
       text += `\n\nOptions:`;
       text += `\n- If this is a duplicate: skip creation, update the existing memory instead`;
-      text += `\n- If this is different: call create_memory again with confirm_create: true`;
+      text += `\n- If this is different: call create_memory again with all the same params + confirm_create: true`;
       return { content: [{ type: "text", text }] };
     }
 
