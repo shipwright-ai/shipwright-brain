@@ -74,7 +74,7 @@ Do NOT pass content — the response tells you the file path and format to write
     kind: z.string().optional().describe("Top-level folder name. Any string works — new kind = new folder. Common: decisions, ideas, personas, features, patterns, bugs, architecture, learnings. Not needed if parent is set."),
     parent: z.string().optional().describe("Parent memory_file to nest under. Omit for top-level."),
     by: z.string().describe("Who: developer, reviewer, researcher, orchestrator"),
-    tags: z.array(z.string()).optional().describe("Tags for filtering"),
+    tags: z.array(z.string()).optional().describe("Tags for filtering. Check brain://overview for existing tags — reuse for consistency. Tags can track category, area, and priority (e.g. urgent, high, low)."),
     refs: z.array(z.string()).optional().describe('Related memory_file paths'),
   },
   async ({ title, summary, kind, parent, by, tags, refs }) => {
