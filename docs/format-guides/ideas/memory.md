@@ -8,8 +8,7 @@ by: system
 at: "2026-03-29T00:00:00.000Z"
 ---
 
-Tag with a category: bug, feature, improvement, epic, research, chore.
-Also tag with area if known: auth, api, ui, data, infra, etc.
+Tag with a category and area. Check brain://overview for existing tags first — reuse when they fit, create new ones when they don't.
 
 Write as a checklist — each step is a checkbox:
 
