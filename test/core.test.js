@@ -201,4 +201,58 @@ describe("Brain core", () => {
       assert.ok(guide.includes("What:"));
     });
   });
+
+  describe("duplicate detection", () => {
+    it("detects near-identical memories as duplicates", async () => {
+      // Create the first memory
+      brain.create({
+        title: "MemoryCard compact layout for narrow containers via container queries",
+        summary: "Cards in board columns and dashboard are too wide — use CSS container queries to switch to compact layout (stacked, smaller text) when container is narrow",
+        content: "",
+        kind: "ideas",
+        tags: ["brain-ui", "ux", "improvement"],
+        by: "test",
+      });
+
+      // Wait for embedding to compute
+      await new Promise(r => setTimeout(r, 3000));
+
+      // Check if second similar memory is detected
+      const { duplicates, related } = await brain.findSimilar(
+        "Dashboard and board layout improvements",
+        "Homepage dashboard and kanban board need better layout — cards too wide, mobile responsiveness, consider horizontal scroll for board columns"
+      );
+
+      // Should be detected as either duplicate or related
+      const found = [...duplicates, ...related];
+      assert.ok(found.length > 0, "Should find similar existing memory");
+
+      const match = found[0];
+      assert.ok(match.title.includes("MemoryCard") || match.title.includes("compact"), "Should match the compact layout memory");
+      assert.ok(match.score >= 0.6, `Score ${match.score} should be >= 0.6 for clearly related memories`);
+
+      console.log(`  Similarity score: ${match.score} (${match.score >= 0.9 ? "duplicate" : "related"})`);
+    });
+
+    it("does not flag unrelated memories as duplicates", async () => {
+      const { duplicates, related } = await brain.findSimilar(
+        "Database migration strategy",
+        "Plan for migrating from SQLite to PostgreSQL with zero downtime"
+      );
+
+      // The compact layout memory should NOT appear as duplicate
+      assert.strictEqual(duplicates.length, 0, "Unrelated memory should not be a duplicate");
+    });
+  });
+
+  describe("semantic search", () => {
+    it("finds memories by meaning not just keywords", async () => {
+      // "narrow cards" should find the compact layout memory even though
+      // the exact phrase doesn't appear
+      const r = await brain.semanticSearch({ query: "narrow cards", limit: 5 });
+      const titles = r.memories.map(m => m.title);
+      const found = titles.some(t => t.includes("MemoryCard") || t.includes("compact"));
+      assert.ok(found, `Should find compact layout memory via semantic search. Got: ${titles.join(", ")}`);
+    });
+  });
 });
