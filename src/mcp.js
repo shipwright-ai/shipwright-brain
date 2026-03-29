@@ -180,9 +180,23 @@ When the developer asks "what should I do next?" or similar:
 server.tool(
   "screenshot",
   `Capture a screenshot of a URL using Playwright.
+
 Without memory_file: saves to temp, returns file path.
 With memory_file: saves next to that memory and appends image reference to the markdown.
-Use clicks to interact with the page before capturing — e.g. open a menu, expand a section, navigate to a specific state.`,
+
+Clicks: interact with the page before capturing. Pass an array of CSS selectors —
+they are clicked in order with a short pause between each. The screenshot is taken
+after all clicks complete. This lets you capture specific UI states:
+
+Example — screenshot of an open settings dropdown:
+  url: "http://localhost:3000"
+  clicks: [".user-avatar", ".dropdown-item-settings"]
+
+Example — screenshot of a modal after clicking a button:
+  url: "http://localhost:3000/dashboard"
+  clicks: ["button.new-project"]
+
+Each selector must be visible and clickable on the page at that point in the sequence.`,
   {
     url: z.string().describe("URL to screenshot"),
     name: z.string().optional().describe("Filename without .png"),
