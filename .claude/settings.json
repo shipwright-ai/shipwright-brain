@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "shipwright-brain": {
+      "command": "npx",
+      "args": [
+        "shipwright-brain",
+        "mcp",
+        "./docs"
+      ]
+    }
+  }
+}

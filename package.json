@@ -1,0 +1,21 @@
+{
+  "name": "shipwright-brain",
+  "version": "0.1.0",
+  "description": "Simple memory for AI agents — markdown files, MCP server, web UI",
+  "type": "module",
+  "main": "src/core.js",
+  "bin": {
+    "shipwright-brain": "./bin.js"
+  },
+  "scripts": {
+    "mcp": "node src/mcp.js",
+    "ui": "node src/http.js",
+    "start": "node bin.js start"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "gray-matter": "^4.0.3",
+    "glob": "^11.0.1",
+    "playwright": "^1.50.0"
+  }
+}

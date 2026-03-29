@@ -76,7 +76,7 @@ Open http://localhost:3111 — list view + graph view, auto-refreshes.
 ```json
 {
   "mcpServers": {
-    "shipwright-brain": {
+    "brain": {
       "command": "npx",
       "args": ["shipwright-brain", "mcp", "./docs"]
     }
