@@ -83,10 +83,11 @@ Do NOT pass content — the response tells you the file path and format to write
     const existingTags = new Set(Object.keys(brain.allTags()));
 
     // Check for similar existing memories before creating
-    const similar = confirm_create ? [] : await brain.findSimilar(title, summary);
-    if (similar.length > 0) {
-      let text = `⚠ POSSIBLE DUPLICATES found — review before proceeding:\n`;
-      for (const s of similar) {
+    const { duplicates, related } = confirm_create ? { duplicates: [], related: [] } : await brain.findSimilar(title, summary);
+
+    if (duplicates.length > 0) {
+      let text = `⚠ POSSIBLE DUPLICATES found (90%+ similar) — review before proceeding:\n`;
+      for (const s of duplicates) {
         text += `\n  ${s.memory_file} — ${s.title} (${Math.round(s.score * 100)}% similar)`;
         if (s.summary) text += `\n    ${s.summary}`;
         if (s.tags.length) text += `\n    tags: ${s.tags.join(", ")}`;
@@ -97,7 +98,11 @@ Do NOT pass content — the response tells you the file path and format to write
       return { content: [{ type: "text", text }] };
     }
 
-    const memFile = brain.create({ title, summary, content: "", kind, parent, tags, refs, by });
+    // Auto-add related memories as refs
+    const autoRefs = related.map(r => r.memory_file);
+    const allRefs = [...new Set([...(refs || []), ...autoRefs])];
+
+    const memFile = brain.create({ title, summary, content: "", kind, parent, tags, refs: allRefs, by });
     if (!memFile) return { content: [{ type: "text", text: "Failed — parent not found." }] };
 
     const effectiveKind = kind || (parent ? "sub-memory" : "memories");
@@ -106,6 +111,14 @@ Do NOT pass content — the response tells you the file path and format to write
     if (slugKind && !existingKinds.has(slugKind)) text += `\nNew kind: ${slugKind}`;
     const newTags = (tags || []).map(t => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")).filter(t => t && !existingTags.has(t));
     if (newTags.length) text += `\nNew tags: ${newTags.join(", ")}`;
+
+    if (related.length > 0) {
+      text += `\n\nRelated memories (added as refs — consider as parent or additional context):`;
+      for (const r of related) {
+        text += `\n  ${r.memory_file} — ${r.title} (${Math.round(r.score * 100)}% similar)`;
+      }
+      text += `\n\nIf any of these should be the parent, delete this memory and recreate with parent param.`;
+    }
 
     text += `\n\n⚠ NEXT STEPS — do these now before moving on:`;
     text += `\n- [ ] Write content to ${memFile} in this format:\n\n${brain.getFormatGuide(effectiveKind)}`;

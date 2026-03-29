@@ -506,16 +506,18 @@ export async function semanticSearch({ query, tags, kind, status, limit = 20, of
 export async function findSimilar(title, summary, { limit = 3 } = {}) {
   const text = `${title} ${summary || ""}`.trim();
   const queryEmbedding = await embed(text);
-  const scored = [];
+  const duplicates = [];
+  const related = [];
   for (const e of cache.values()) {
     if (!e.embedding) continue;
     const score = cosineSimilarity(queryEmbedding, e.embedding);
-    if (score > 0.4) {
-      scored.push({ memory_file: e.memory_file, title: e.title, summary: e.summary, tags: e.tags, score: Math.round(score * 1000) / 1000 });
-    }
+    const entry = { memory_file: e.memory_file, title: e.title, summary: e.summary, tags: e.tags, score: Math.round(score * 1000) / 1000 };
+    if (score >= 0.9) duplicates.push(entry);
+    else if (score >= 0.6) related.push(entry);
   }
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, limit);
+  duplicates.sort((a, b) => b.score - a.score);
+  related.sort((a, b) => b.score - a.score);
+  return { duplicates: duplicates.slice(0, limit), related: related.slice(0, limit) };
 }
 
 export async function screenshot(url, { name, memoryFile, clicks } = {}) {
