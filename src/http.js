@@ -197,7 +197,8 @@ const server = http.createServer(async (req, res) => {
     const limit = parseInt(params.get("limit")) || 20;
     const offset = parseInt(params.get("offset")) || 0;
     const tags = params.get("tags") ? params.get("tags").split(",") : undefined;
-    const r = brain.browse(p, { limit, offset, tags });
+    const status = params.get("status") || undefined;
+    const r = brain.browse(p, { limit, offset, tags, status });
     if (!r) return json(res, { error: "Not found" }, 404);
     return json(res, r);
   }
