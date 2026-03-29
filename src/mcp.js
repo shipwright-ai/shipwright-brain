@@ -142,11 +142,13 @@ Check brain://overview for available tags before filtering.`,
     path: z.string().optional().describe('Kind string (e.g. "decisions") or memory_file. Omit for top-level.'),
     tags: z.array(z.string()).optional().describe("Filter by tags (any match)"),
     status: z.enum(["not-started", "in-progress", "done"]).optional().describe("Filter by checkbox status"),
+    sort: z.enum(["recent", "oldest"]).optional().describe("Sort by modified date: recent (default) or oldest first"),
     limit: z.number().optional().describe("Max results (default 20)"),
     offset: z.number().optional().describe("Skip N results (default 0)"),
   },
-  async ({ path: p, tags, status, limit, offset }) => {
-    const r = brain.browse(p, { limit: limit || 20, offset: offset || 0, tags, status });
+  async ({ path: p, tags, status, sort, limit, offset }) => {
+    const coreSort = sort === "oldest" ? "modified:asc" : "modified:desc";
+    const r = brain.browse(p, { limit: limit || 20, offset: offset || 0, tags, status, sort: coreSort });
     if (!r) return { content: [{ type: "text", text: "Not found." }] };
 
     if (r.level === "root") {
@@ -189,11 +191,13 @@ When the developer asks "what should I do next?" or similar:
     tags: z.array(z.string()).optional().describe("Filter by tags (any match)"),
     kind: z.string().optional().describe("Filter by kind"),
     status: z.enum(["not-started", "in-progress", "done"]).optional().describe("Filter by checkbox status: not-started (0/N), in-progress (some/N), done (N/N)"),
+    sort: z.enum(["recent", "oldest"]).optional().describe("Sort by modified date: recent (default) or oldest first"),
     limit: z.number().optional().describe("Max results (default 20)"),
     offset: z.number().optional().describe("Skip N results for pagination (default 0)"),
   },
-  async ({ queries, tags, kind, status, limit, offset }) => {
-    const r = brain.search({ queries, tags, kind, status, limit: limit || 20, offset: offset || 0 });
+  async ({ queries, tags, kind, status, sort, limit, offset }) => {
+    const coreSort = sort === "oldest" ? "modified:asc" : "modified:desc";
+    const r = brain.search({ queries, tags, kind, status, sort: coreSort, limit: limit || 20, offset: offset || 0 });
     if (!r.memories.length) return { content: [{ type: "text", text: "No memories found." }] };
 
     let text = r.memories.map((m) => {
