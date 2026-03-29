@@ -235,7 +235,7 @@ const server = http.createServer(async (req, res) => {
     }).filter(Boolean);
     const refs = (entry.refs || []).map(rf => {
       const r = brain.getEntry(rf);
-      return r ? { memory_file: r.memory_file, title: r.title, summary: r.summary, kind: r.kind, tags: r.tags, progress: r.progress, aggregateProgress: r.aggregateProgress } : { memory_file: rf };
+      return r ? { memory_file: r.memory_file, title: r.title, summary: r.summary, kind: r.kind, tags: r.tags, progress: r.progress, aggregateProgress: r.aggregateProgress } : { memory_file: rf, deleted: true };
     });
     return json(res, { ...entry, content, children, refs });
   }
