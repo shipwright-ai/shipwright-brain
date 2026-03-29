@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
+import { embed, cosineSimilarity } from "./embeddings.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -23,7 +24,22 @@ export function init(docsDir, projectRoot) {
 
   fs.mkdirSync(DOCS_DIR, { recursive: true });
   scanKinds();
-  setImmediate(() => { rebuildCache(); startWatcher(); });
+
+  // Fast path: restore from disk cache synchronously (instant MCP startup)
+  const disk = loadDiskCache();
+  if (disk && disk.entries.length > 0) {
+    for (const entry of disk.entries) {
+      cache.set(entry.memory_file, entry);
+      if (entry.kind) knownKinds.add(entry.kind);
+    }
+    cacheReady = true;
+    console.error(`[brain] Fast restore: ${disk.entries.length} entries from cache`);
+    // Defer verification + new file scan to background
+    setImmediate(() => { verifyCacheInBackground(disk.meta.lastUpdate); startWatcher(); });
+  } else {
+    // No cache — full scan (first run only)
+    setImmediate(() => { rebuildCache(); startWatcher(); });
+  }
 }
 
 export function getDocsDir() { return DOCS_DIR; }
@@ -34,6 +50,35 @@ function scanKinds() {
   for (const e of fs.readdirSync(DOCS_DIR)) {
     if (!e.startsWith(".") && fs.statSync(path.join(DOCS_DIR, e)).isDirectory()) knownKinds.add(e);
   }
+}
+
+function embeddingText(entry, content) {
+  return `${entry.title} ${entry.summary} ${(entry.tags || []).join(" ")} ${content || ""}`.trim();
+}
+
+// Queue for async embedding computation — doesn't block loadEntry
+const embeddingQueue = [];
+let embeddingRunning = false;
+
+async function processEmbeddingQueue() {
+  if (embeddingRunning) return;
+  embeddingRunning = true;
+  while (embeddingQueue.length > 0) {
+    const { memFile, text } = embeddingQueue.shift();
+    try {
+      const entry = cache.get(memFile);
+      if (entry) {
+        entry.embedding = await embed(text);
+        saveDiskCache();
+      }
+    } catch (e) { console.error("[embeddings] Error:", e.message); }
+  }
+  embeddingRunning = false;
+}
+
+function queueEmbedding(memFile, text) {
+  embeddingQueue.push({ memFile, text });
+  processEmbeddingQueue();
 }
 
 function parseCheckboxes(content) {
@@ -105,50 +150,45 @@ function updateDiskCacheEntry(memFile) {
   saveDiskCache();
 }
 
-function rebuildCache() {
-  cache.clear();
+function verifyCacheInBackground(lastUpdate) {
+  let stale = 0, missing = 0, added = 0;
 
-  // Try to restore from disk cache first
-  const disk = loadDiskCache();
-  if (disk && disk.entries.length > 0) {
-    const lastUpdate = disk.meta.lastUpdate;
-    let restored = 0, stale = 0, missing = 0;
-
-    // Load cached entries, verify each file still exists
-    for (const entry of disk.entries) {
-      const absFile = abs(entry.memory_file);
-      if (!fs.existsSync(absFile)) { missing++; continue; }
-
-      // Check if file changed since cache was written
-      const mtime = fs.statSync(absFile).mtime.toISOString();
-      if (mtime > lastUpdate) {
-        // File changed — re-parse it
-        const absDir = path.dirname(absFile);
-        loadEntry(absDir);
-        stale++;
-      } else {
-        // File unchanged — use cached entry
-        cache.set(entry.memory_file, entry);
-        if (entry.kind) knownKinds.add(entry.kind);
-        restored++;
-      }
+  // Verify existing entries
+  for (const [memFile, entry] of [...cache.entries()]) {
+    const absFile = abs(memFile);
+    if (!fs.existsSync(absFile)) {
+      cache.delete(memFile);
+      missing++;
+      continue;
     }
-
-    // Scan for new files not in cache
-    const newFiles = [];
-    if (fs.existsSync(DOCS_DIR)) findNewFiles(DOCS_DIR, newFiles);
-    for (const absDir of newFiles) loadEntry(absDir);
-
-    console.error(`[brain] Cache restored: ${restored} cached, ${stale} updated, ${missing} removed, ${newFiles.length} new`);
-  } else {
-    // No disk cache — full scan
-    if (fs.existsSync(DOCS_DIR)) walkDir(DOCS_DIR);
-    console.error(`[brain] Full scan: ${cache.size} entries loaded`);
+    const mtime = fs.statSync(absFile).mtime.toISOString();
+    if (mtime > lastUpdate) {
+      loadEntry(path.dirname(absFile));
+      stale++;
+    }
   }
 
+  // Scan for new files
+  const newFiles = [];
+  if (fs.existsSync(DOCS_DIR)) findNewFiles(DOCS_DIR, newFiles);
+  for (const absDir of newFiles) { loadEntry(absDir); added++; }
+
+  recomputeAllAggregates();
+  if (stale || missing || added) {
+    saveDiskCache();
+    console.error(`[brain] Background verify: ${stale} updated, ${missing} removed, ${added} new`);
+  } else {
+    console.error(`[brain] Background verify: all clean`);
+  }
+}
+
+function rebuildCache() {
+  cache.clear();
+  if (fs.existsSync(DOCS_DIR)) walkDir(DOCS_DIR);
   recomputeAllAggregates();
   saveDiskCache();
   cacheReady = true;
+  console.error(`[brain] Full scan: ${cache.size} entries loaded`);
 }
 
 function findNewFiles(dir, results) {
@@ -248,14 +288,24 @@ function loadEntry(absDir) {
     const parts = path.relative(DOCS_DIR, absDir).split(path.sep);
     const progress = parseCheckboxes(content);
     const fileStat = fs.statSync(absFile);
-    cache.set(memFile, {
+    // Preserve embedding from old entry or disk cache if content unchanged
+    const oldEmbedding = oldEntry ? oldEntry.embedding : null;
+    const entry = {
       memory_file: memFile, title: fm.title || parts[parts.length - 1],
       summary: fm.summary || "", kind: parts[0], slug: parts[parts.length - 1],
       depth: parts.length, parent, children, attachments, progress,
       tags: fm.tags || [], refs: allRefs, by: fm.by || "unknown",
       at: fm.at || "", modified: fileStat.mtime.toISOString(),
-    });
+      embedding: oldEmbedding || null,
+    };
+    cache.set(memFile, entry);
     knownKinds.add(parts[0]);
+
+    // Queue embedding if missing or content changed
+    const text = embeddingText(entry, content);
+    if (!entry.embedding) {
+      queueEmbedding(memFile, text);
+    }
   } catch (e) { console.error("Cache error:", e.message); }
 }
 
@@ -428,6 +478,44 @@ export function search({ queries, tags, kind, status, limit = 20, offset = 0 }) 
   const result = { memories: results.slice(offset, offset + limit), total, limit, offset, hasMore: offset + limit < total };
   if (offset === 0) result.facets = computeFacets(results);
   return result;
+}
+
+export async function semanticSearch({ query, tags, kind, status, limit = 20, offset = 0 }) {
+  const queryEmbedding = await embed(query);
+  const scored = [];
+  for (const e of cache.values()) {
+    if (kind && e.kind !== kind) continue;
+    if (tags && tags.length && !tags.some(t => e.tags.includes(t))) continue;
+    if (!matchesStatus(e, status)) continue;
+    // Hybrid: semantic + keyword
+    const semantic = e.embedding ? cosineSimilarity(queryEmbedding, e.embedding) : 0;
+    const hay = `${e.title} ${e.summary} ${e.tags.join(" ")} ${e.kind} ${e.slug}`.toLowerCase();
+    const keyword = hay.includes(query.toLowerCase()) ? 0.3 : 0;
+    const score = semantic + keyword;
+    if (score > 0.1) {
+      scored.push({ memory_file: e.memory_file, title: e.title, summary: e.summary, kind: e.kind, tags: e.tags, progress: e.progress, aggregateProgress: e.aggregateProgress, at: e.at, modified: e.modified, score: Math.round(score * 1000) / 1000 });
+    }
+  }
+  scored.sort((a, b) => b.score - a.score);
+  const total = scored.length;
+  const result = { memories: scored.slice(offset, offset + limit), total, limit, offset, hasMore: offset + limit < total };
+  if (offset === 0) result.facets = computeFacets(scored);
+  return result;
+}
+
+export async function findSimilar(title, summary, { limit = 3 } = {}) {
+  const text = `${title} ${summary || ""}`.trim();
+  const queryEmbedding = await embed(text);
+  const scored = [];
+  for (const e of cache.values()) {
+    if (!e.embedding) continue;
+    const score = cosineSimilarity(queryEmbedding, e.embedding);
+    if (score > 0.4) {
+      scored.push({ memory_file: e.memory_file, title: e.title, summary: e.summary, tags: e.tags, score: Math.round(score * 1000) / 1000 });
+    }
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit);
 }
 
 export async function screenshot(url, { name, memoryFile, clicks } = {}) {

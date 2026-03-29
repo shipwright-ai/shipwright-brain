@@ -214,6 +214,16 @@ const server = http.createServer(async (req, res) => {
     return json(res, brain.search({ queries, tags, kind, status, limit, offset }));
   }
 
+  if (pathname === "/api/semantic-search") {
+    const q = params.get("q") || "";
+    const tags = params.get("tags") ? params.get("tags").split(",") : undefined;
+    const kind = params.get("kind") || undefined;
+    const status = params.get("status") || undefined;
+    const limit = parseInt(params.get("limit")) || 20;
+    const offset = parseInt(params.get("offset")) || 0;
+    return json(res, await brain.semanticSearch({ query: q, tags, kind, status, limit, offset }));
+  }
+
   if (pathname === "/api/memory") {
     const f = params.get("f");
     const entry = brain.getEntry(f);

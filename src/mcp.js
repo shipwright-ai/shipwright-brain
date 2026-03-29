@@ -76,10 +76,26 @@ Do NOT pass content — the response tells you the file path and format to write
     by: z.string().describe("Who: developer, reviewer, researcher, orchestrator"),
     tags: z.array(z.string()).optional().describe("Tags for filtering. Check brain://overview for existing tags — reuse for consistency. Tags can track category, area, and priority (e.g. urgent, high, low)."),
     refs: z.array(z.string()).optional().describe('Related memory_file paths'),
+    confirm_create: z.boolean().optional().describe("Set to true to skip duplicate check and force creation."),
   },
-  async ({ title, summary, kind, parent, by, tags, refs }) => {
+  async ({ title, summary, kind, parent, by, tags, refs, confirm_create }) => {
     const existingKinds = new Set(brain.getKinds());
     const existingTags = new Set(Object.keys(brain.allTags()));
+
+    // Check for similar existing memories before creating
+    const similar = confirm_create ? [] : await brain.findSimilar(title, summary);
+    if (similar.length > 0) {
+      let text = `⚠ POSSIBLE DUPLICATES found — review before proceeding:\n`;
+      for (const s of similar) {
+        text += `\n  ${s.memory_file} — ${s.title} (${Math.round(s.score * 100)}% similar)`;
+        if (s.summary) text += `\n    ${s.summary}`;
+        if (s.tags.length) text += `\n    tags: ${s.tags.join(", ")}`;
+      }
+      text += `\n\nOptions:`;
+      text += `\n- If this is a duplicate: skip creation, update the existing memory instead`;
+      text += `\n- If this is different: call create_memory again with confirm_create: true`;
+      return { content: [{ type: "text", text }] };
+    }
 
     const memFile = brain.create({ title, summary, content: "", kind, parent, tags, refs, by });
     if (!memFile) return { content: [{ type: "text", text: "Failed — parent not found." }] };
@@ -168,6 +184,37 @@ When the developer asks "what should I do next?" or similar:
 
     let text = r.memories.map((m) => {
       let line = `${m.memory_file} — ${m.title}`;
+      if (m.progress) line += ` [${m.progress.checked}/${m.progress.total}]`;
+      if (m.summary) line += `\n  ${m.summary}`;
+      return line;
+    }).join("\n\n");
+
+    text = `${r.total} total, showing ${r.memories.length}:\n\n${text}`;
+    if (r.hasMore) text += `\n\n... more results available (offset: ${(offset || 0) + r.memories.length})`;
+    return { content: [{ type: "text", text }] };
+  }
+);
+
+server.tool(
+  "semantic_search",
+  `Semantic search — find memories by meaning, not just keywords.
+Uses embeddings to find conceptually related memories even when exact words don't match.
+Results are ranked by similarity score (0-1). Combines semantic + keyword matching.
+Use this when keyword search returns too few results or the query is conceptual.`,
+  {
+    query: z.string().describe('Natural language query, e.g. "how do we handle authentication"'),
+    tags: z.array(z.string()).optional().describe("Filter by tags (any match)"),
+    kind: z.string().optional().describe("Filter by kind"),
+    status: z.enum(["not-started", "in-progress", "done"]).optional().describe("Filter by status"),
+    limit: z.number().optional().describe("Max results (default 20)"),
+    offset: z.number().optional().describe("Skip N results (default 0)"),
+  },
+  async ({ query, tags, kind, status, limit, offset }) => {
+    const r = await brain.semanticSearch({ query, tags, kind, status, limit: limit || 20, offset: offset || 0 });
+    if (!r.memories.length) return { content: [{ type: "text", text: "No memories found." }] };
+
+    let text = r.memories.map((m) => {
+      let line = `${m.memory_file} — ${m.title} (${Math.round(m.score * 100)}%)`;
       if (m.progress) line += ` [${m.progress.checked}/${m.progress.total}]`;
       if (m.summary) line += `\n  ${m.summary}`;
       return line;
