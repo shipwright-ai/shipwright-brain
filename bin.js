@@ -3,9 +3,9 @@
 /**
  * Shipwright Brain CLI
  *
- * npx shipwright-brain init [docs-dir]   — set up brain in a project
- * npx shipwright-brain mcp [docs-dir]    — run MCP server (Claude Code manages this)
- * npx shipwright-brain ui [docs-dir]     — run the web UI (developer runs this)
+ * npx shipwright-brain init [--dir docs]         — set up brain in a project
+ * npx shipwright-brain mcp [--dir docs]          — run MCP server (Claude Code manages this)
+ * npx shipwright-brain ui [--dir docs] [--port 3111] — run the web UI
  */
 
 import fs from "fs";
@@ -15,10 +15,18 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const command = args[0];
-const docsDir = args[1] || "./docs";
 
-// Pass docs dir to imported modules via env
+function flag(name, fallback) {
+  const i = args.indexOf(`--${name}`);
+  return i !== -1 && args[i + 1] ? args[i + 1] : fallback;
+}
+
+const docsDir = flag("dir", "./docs");
+const port = flag("port", "3111");
+
+// Pass config to imported modules via env
 process.env.BRAIN_DOCS_DIR = path.resolve(docsDir);
+process.env.BRAIN_PORT = port;
 
 if (command === "init") {
   // --- INIT ---
@@ -42,7 +50,7 @@ if (command === "init") {
 
   mcpConfig.mcpServers["brain"] = {
     command: "npx",
-    args: ["shipwright-brain", "mcp", docsDir],
+    args: ["shipwright-brain", "mcp", "--dir", docsDir],
   };
 
   fs.writeFileSync(mcpPath, JSON.stringify(mcpConfig, null, 2), "utf-8");
@@ -85,9 +93,9 @@ Memories organize by kind:
 Shipwright Brain — memory for AI agents
 
 Commands:
-  npx shipwright-brain init [docs-dir]   Set up brain in current project
-  npx shipwright-brain ui [docs-dir]     Browse memories in the browser
-  npx shipwright-brain mcp [docs-dir]    Run MCP server (Claude Code does this)
+  npx shipwright-brain init [--dir docs]              Set up brain in current project
+  npx shipwright-brain ui [--dir docs] [--port 3111]  Browse memories in the browser
+  npx shipwright-brain mcp [--dir docs]               Run MCP server (Claude Code does this)
 
 Quick start:
   npx shipwright-brain init

@@ -14,7 +14,7 @@ import path from "path";
 import * as brain from "./core.js";
 
 const dir = process.env.BRAIN_DOCS_DIR || process.argv[2] || "./docs";
-const PORT = process.env.BRAIN_PORT || (process.env.BRAIN_DOCS_DIR ? 3111 : process.argv[3]) || 3111;
+const PORT = process.env.BRAIN_PORT || process.argv[3] || 3111;
 brain.init(dir);
 
 function json(res, data, status = 200) {
