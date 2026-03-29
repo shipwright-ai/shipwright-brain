@@ -141,7 +141,11 @@ server.tool(
 Searches title, summary, tags, kind, slug from cache. Returns max 20 results per call.
 Use offset to paginate. To read full content, open the memory_file directly.
 Filter by status to find actionable items: "not-started", "in-progress", or "done".
-Status is auto-detected from checkboxes: 0/N = not-started, some = in-progress, all = done.`,
+Status is auto-detected from checkboxes: 0/N = not-started, some = in-progress, all = done.
+When the developer asks "what should I do next?" or similar:
+  1. Search with status "in-progress" first — finish what's started
+  2. Then status "not-started" — pick up new work
+  3. Present both lists so the developer can choose`,
   {
     queries: z.array(z.string()).describe('Search queries, e.g. ["auth", "JWT", "login"]'),
     tags: z.array(z.string()).optional().describe("Filter by tags (any match)"),
