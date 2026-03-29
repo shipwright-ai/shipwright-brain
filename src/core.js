@@ -366,6 +366,25 @@ function cleanRefs(memFile) {
   }
 }
 
+function cleanupAbandonedDuplicate(slug, newMemFile) {
+  const ONE_HOUR = 60 * 60 * 1000;
+  const now = Date.now();
+  for (const e of cache.values()) {
+    if (e.slug !== slug || e.memory_file === newMemFile) continue;
+    // Must be created within the last hour
+    if (!e.at || now - new Date(e.at).getTime() > ONE_HOUR) continue;
+    // Must never have been edited (created ≈ modified, within 5 seconds)
+    if (e.modified && Math.abs(new Date(e.modified).getTime() - new Date(e.at).getTime()) > 5000) continue;
+    // Must have no children
+    if (e.children && e.children.length > 0) continue;
+    // Abandoned skeleton — remove it
+    console.error(`[brain] Auto-cleanup abandoned memory: ${e.memory_file}`);
+    remove(e.memory_file);
+    return e.memory_file;
+  }
+  return null;
+}
+
 export function create({ title, summary, content, kind, parent, tags, refs, by }) {
   const slug = slugify(title);
   let targetDir;
@@ -389,6 +408,10 @@ export function create({ title, summary, content, kind, parent, tags, refs, by }
   loadEntry(finalDir);
   syncRefs(memFile, refs);
   if (parent) { const pd = path.dirname(abs(parent)); if (fs.existsSync(path.join(pd, "memory.md"))) loadEntry(pd); }
+
+  // Clean up abandoned same-slug memories (reorganization)
+  const cleaned = cleanupAbandonedDuplicate(slug, memFile);
+
   saveDiskCache();
   return memFile;
 }
