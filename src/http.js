@@ -223,7 +223,11 @@ const server = http.createServer(async (req, res) => {
       const c = brain.getEntry(cf);
       return c ? { memory_file: c.memory_file, title: c.title, summary: c.summary, tags: c.tags, progress: c.progress, aggregateProgress: c.aggregateProgress, children: c.children.length, at: c.at, modified: c.modified } : null;
     }).filter(Boolean);
-    return json(res, { ...entry, content, children });
+    const refs = (entry.refs || []).map(rf => {
+      const r = brain.getEntry(rf);
+      return r ? { memory_file: r.memory_file, title: r.title, summary: r.summary, kind: r.kind, tags: r.tags, progress: r.progress, aggregateProgress: r.aggregateProgress } : { memory_file: rf };
+    });
+    return json(res, { ...entry, content, children, refs });
   }
 
   if (pathname === "/api/graph") {
