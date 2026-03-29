@@ -360,11 +360,10 @@ The actual knowledge — decisions, reasoning, details.
 Links, related memories, sources.`;
 
 const CONTEXT_5W = `
-Always structure context using the 5W framework:
+Always structure context using this framework:
 > Why: what problem does this solve, what motivated it
 > What: concrete scope, deliverable, or outcome
 > Who: who needs it, who is affected, who is doing it
-> When: deadline, urgency, or priority
 > How: approach, constraints, or dependencies`;
 
 export function getFormatGuide(kind) {
