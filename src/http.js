@@ -239,7 +239,18 @@ const server = http.createServer(async (req, res) => {
       const r = brain.getEntry(rf);
       return r ? { memory_file: r.memory_file, title: r.title, summary: r.summary, kind: r.kind, tags: r.tags, progress: r.progress, aggregateProgress: r.aggregateProgress } : { memory_file: rf, deleted: true };
     });
-    return json(res, { ...entry, content, children, refs });
+    // Expand inline memory links in content
+    const contentLinkRe = /\[([^\]]*)\]\(([^)]*memory\.md)\)/g;
+    const contentLinks = [];
+    let match;
+    while ((match = contentLinkRe.exec(content || "")) !== null) {
+      const [full, label, target] = match;
+      const r = brain.getEntry(target);
+      contentLinks.push(r
+        ? { label, memory_file: r.memory_file, title: r.title, summary: r.summary, kind: r.kind, progress: r.progress }
+        : { label, memory_file: target, deleted: true });
+    }
+    return json(res, { ...entry, content, children, refs, contentLinks });
   }
 
   if (pathname === "/api/graph") {
