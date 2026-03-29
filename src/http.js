@@ -159,8 +159,13 @@ $('crumbs').innerHTML='<span onclick="go()">Brain</span><span class="sep"> / </s
 const items=searchData.memories||searchData||[];
 $('content').innerHTML=items.length?renderList(items):'<div class="empty">No results.</div>'}
 
+function progressBadge(p){if(!p)return'';
+const pct=Math.round(p.checked/p.total*100);
+const col=pct===100?'#22c55e':pct===0?'#71717a':'#f59e0b';
+return '<span class="tag" style="border:1px solid '+col+';color:'+col+'">'+p.checked+'/'+p.total+'</span>'}
+
 function renderList(items){return '<div class="list">'+items.map(m=>
-'<div class="row" onclick="go(\\''+esc(m.memory_file)+'\\')"><div class="rtitle">'+esc(m.title)+'</div>'+
+'<div class="row" onclick="go(\\''+esc(m.memory_file)+'\\')"><div class="rtitle">'+esc(m.title)+(m.progress?'  '+progressBadge(m.progress):'')+'</div>'+
 (m.summary?'<div class="rsum">'+esc(m.summary)+'</div>':'')+
 '<div class="rmeta">'+(m.tags||[]).map(t=>'<span class="tag">'+esc(t)+'</span>').join('')+
 (m.children?'<span class="tag">+'+m.children+' sub</span>':'')+'</div></div>'
@@ -201,9 +206,10 @@ const server = http.createServer(async (req, res) => {
     const queries = q.split(/\s+/).filter(Boolean);
     const tags = params.get("tags") ? params.get("tags").split(",") : undefined;
     const kind = params.get("kind") || undefined;
+    const status = params.get("status") || undefined;
     const limit = parseInt(params.get("limit")) || 20;
     const offset = parseInt(params.get("offset")) || 0;
-    return json(res, brain.search({ queries, tags, kind, limit, offset }));
+    return json(res, brain.search({ queries, tags, kind, status, limit, offset }));
   }
 
   if (pathname === "/api/memory") {
@@ -213,7 +219,7 @@ const server = http.createServer(async (req, res) => {
     const content = brain.readContent(f);
     const children = (entry.children || []).map(cf => {
       const c = brain.getEntry(cf);
-      return c ? { memory_file: c.memory_file, title: c.title, summary: c.summary, tags: c.tags, children: c.children.length } : null;
+      return c ? { memory_file: c.memory_file, title: c.title, summary: c.summary, tags: c.tags, progress: c.progress, children: c.children.length } : null;
     }).filter(Boolean);
     return json(res, { ...entry, content, children });
   }

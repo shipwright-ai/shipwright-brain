@@ -123,6 +123,7 @@ Tags filter at every level — only show memories matching any of the given tags
 
     let text = items.map((m) => {
       let line = `${m.memory_file} — ${m.title}`;
+      if (m.progress) line += ` [${m.progress.checked}/${m.progress.total}]`;
       if (m.summary) line += `\n  ${m.summary}`;
       if (m.children) line += ` (+${m.children} sub)`;
       return line;
@@ -138,20 +139,24 @@ server.tool(
   "search_memories",
   `Search memories. Multiple queries supported — matches if ANY query hits (OR logic).
 Searches title, summary, tags, kind, slug from cache. Returns max 20 results per call.
-Use offset to paginate. To read full content, open the memory_file directly.`,
+Use offset to paginate. To read full content, open the memory_file directly.
+Filter by status to find actionable items: "not-started", "in-progress", or "done".
+Status is auto-detected from checkboxes: 0/N = not-started, some = in-progress, all = done.`,
   {
     queries: z.array(z.string()).describe('Search queries, e.g. ["auth", "JWT", "login"]'),
     tags: z.array(z.string()).optional().describe("Filter by tags (any match)"),
     kind: z.string().optional().describe("Filter by kind"),
+    status: z.enum(["not-started", "in-progress", "done"]).optional().describe("Filter by checkbox status: not-started (0/N), in-progress (some/N), done (N/N)"),
     limit: z.number().optional().describe("Max results (default 20)"),
     offset: z.number().optional().describe("Skip N results for pagination (default 0)"),
   },
-  async ({ queries, tags, kind, limit, offset }) => {
-    const r = brain.search({ queries, tags, kind, limit: limit || 20, offset: offset || 0 });
+  async ({ queries, tags, kind, status, limit, offset }) => {
+    const r = brain.search({ queries, tags, kind, status, limit: limit || 20, offset: offset || 0 });
     if (!r.memories.length) return { content: [{ type: "text", text: "No memories found." }] };
 
     let text = r.memories.map((m) => {
       let line = `${m.memory_file} — ${m.title}`;
+      if (m.progress) line += ` [${m.progress.checked}/${m.progress.total}]`;
       if (m.summary) line += `\n  ${m.summary}`;
       return line;
     }).join("\n\n");
