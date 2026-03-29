@@ -141,11 +141,12 @@ Check brain://overview for available tags before filtering.`,
   {
     path: z.string().optional().describe('Kind string (e.g. "decisions") or memory_file. Omit for top-level.'),
     tags: z.array(z.string()).optional().describe("Filter by tags (any match)"),
+    status: z.enum(["not-started", "in-progress", "done"]).optional().describe("Filter by checkbox status"),
     limit: z.number().optional().describe("Max results (default 20)"),
     offset: z.number().optional().describe("Skip N results (default 0)"),
   },
-  async ({ path: p, tags, limit, offset }) => {
-    const r = brain.browse(p, { limit: limit || 20, offset: offset || 0, tags });
+  async ({ path: p, tags, status, limit, offset }) => {
+    const r = brain.browse(p, { limit: limit || 20, offset: offset || 0, tags, status });
     if (!r) return { content: [{ type: "text", text: "Not found." }] };
 
     if (r.level === "root") {
