@@ -79,6 +79,50 @@ function walkDir(dir) {
   }
 }
 
+function parseContentLinks(content, memFile) {
+  // Find markdown links pointing to memory.md files in content
+  const links = [];
+  const re = /\[([^\]]*)\]\(([^)]*memory\.md)\)/g;
+  let m;
+  while ((m = re.exec(content)) !== null) {
+    const target = m[2];
+    if (target !== memFile && !target.startsWith("http")) links.push(target);
+  }
+  return links;
+}
+
+function diffRefs(oldRefs, newRefs, memFile) {
+  const oldSet = new Set(oldRefs || []);
+  const newSet = new Set(newRefs || []);
+  const added = [...newSet].filter(r => !oldSet.has(r));
+  const removed = [...oldSet].filter(r => !newSet.has(r));
+
+  // Add back-refs for new refs
+  for (const tf of added) {
+    const t = cache.get(tf);
+    if (!t || t.refs.includes(memFile)) continue;
+    const af = abs(tf);
+    if (!fs.existsSync(af)) continue;
+    const { data: fm, content } = matter(fs.readFileSync(af, "utf-8"));
+    fm.refs = [...(fm.refs || []), memFile];
+    fs.writeFileSync(af, matter.stringify(content, fm), "utf-8");
+  }
+
+  // Remove back-refs for removed refs
+  for (const tf of removed) {
+    const t = cache.get(tf);
+    if (!t) continue;
+    const af = abs(tf);
+    if (!fs.existsSync(af)) continue;
+    const { data: fm, content } = matter(fs.readFileSync(af, "utf-8"));
+    const cleaned = (fm.refs || []).filter(x => x !== memFile);
+    if (cleaned.length !== (fm.refs || []).length) {
+      fm.refs = cleaned;
+      fs.writeFileSync(af, matter.stringify(content, fm), "utf-8");
+    }
+  }
+}
+
 function loadEntry(absDir) {
   const absFile = path.join(absDir, "memory.md");
   const memFile = rel(absFile);
@@ -86,6 +130,15 @@ function loadEntry(absDir) {
   try {
     const raw = fs.readFileSync(absFile, "utf-8");
     const { data: fm, content } = matter(raw);
+
+    // Merge frontmatter refs with inline content links
+    const contentLinks = parseContentLinks(content, memFile);
+    const allRefs = [...new Set([...(fm.refs || []), ...contentLinks])];
+
+    // Diff refs and sync back-refs if entry already existed
+    const oldEntry = cache.get(memFile);
+    if (oldEntry) diffRefs(oldEntry.refs, allRefs, memFile);
+
     const attachments = fs.readdirSync(absDir)
       .filter(f => f !== "memory.md" && !fs.statSync(path.join(absDir, f)).isDirectory())
       .map(f => {
@@ -104,7 +157,7 @@ function loadEntry(absDir) {
       memory_file: memFile, title: fm.title || parts[parts.length - 1],
       summary: fm.summary || "", kind: parts[0], slug: parts[parts.length - 1],
       depth: parts.length, parent, children, attachments, progress,
-      tags: fm.tags || [], refs: fm.refs || [], by: fm.by || "unknown",
+      tags: fm.tags || [], refs: allRefs, by: fm.by || "unknown",
       at: fm.at || "", modified: fileStat.mtime.toISOString(),
     });
     knownKinds.add(parts[0]);
