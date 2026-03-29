@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
+import os from "os";
 import { embed, cosineSimilarity } from "./embeddings.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -576,7 +577,7 @@ export async function screenshot(url, { name, memoryFile, clicks } = {}) {
     if (!cache.get(memoryFile)) { await browser.close(); return null; }
     savePath = path.join(path.dirname(abs(memoryFile)), filename);
   } else {
-    const tmp = path.join(DOCS_DIR, ".tmp"); fs.mkdirSync(tmp, { recursive: true });
+    const tmp = path.join(os.tmpdir(), "shipwright-brain"); fs.mkdirSync(tmp, { recursive: true });
     savePath = path.join(tmp, filename);
   }
   await page.screenshot({ path: savePath, fullPage: true });
