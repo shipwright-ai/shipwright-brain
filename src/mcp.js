@@ -91,6 +91,11 @@ Returns the memory_file path.`,
     const newTags = (tags || []).map(t => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")).filter(t => t && !existingTags.has(t));
     if (newTags.length) text += `\nNew tags: ${newTags.join(", ")}`;
 
+    text += `\n\n⚠ NEXT STEPS — do these now before moving on:`;
+    text += `\n- [ ] Attach screenshots/images from this conversation using brain.attach_to_memory (memory_file: "${memFile}")`;
+    text += `\n- [ ] Attach any other relevant files (designs, logs, etc.)`;
+    text += `\n- [ ] Skip if no assets exist — but check first, don't assume`;
+
     return { content: [{ type: "text", text }] };
   }
 );
