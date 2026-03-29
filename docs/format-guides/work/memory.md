@@ -1,0 +1,17 @@
+---
+title: Work format guide
+summary: Template for work/task memories — task checklist
+kind: format-guides
+tags: [format-guide]
+refs: []
+by: system
+at: "2026-03-29T00:00:00.000Z"
+---
+
+Write as a checklist — each task is a checkbox:
+
+> Context: what this work is about, date
+
+- [ ] First task
+- [ ] Second task
+- [ ] Verify / review

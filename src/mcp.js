@@ -61,62 +61,6 @@ server.resource(
   }
 );
 
-const FORMAT_GUIDES = {
-  ideas: `Write as a checklist — each step is a checkbox:
-\`\`\`
-> Context: what prompted this idea, date
-
-- [ ] First concrete step
-- [ ] Second step
-- [ ] Third step
-\`\`\`
-3–6 checkboxes. Don't over-plan. Check boxes off as work progresses.`,
-  bugs: `Write as a checklist — each fix/investigation step is a checkbox:
-\`\`\`
-> Observed: what's broken
-> Expected: what should happen
-> Context: how it was discovered, date
-
-- [ ] Reproduce the issue
-- [ ] Identify root cause
-- [ ] Implement fix
-- [ ] Verify fix
-\`\`\``,
-  features: `Write as a checklist — each deliverable is a checkbox:
-\`\`\`
-> Context: why this feature, who needs it, date
-
-- [ ] First deliverable
-- [ ] Second deliverable
-- [ ] Tests / validation
-\`\`\``,
-  work: `Write as a checklist — each task is a checkbox:
-\`\`\`
-> Context: what this work is about, date
-
-- [ ] First task
-- [ ] Second task
-- [ ] Verify / review
-\`\`\``,
-};
-const DEFAULT_FORMAT = `Write as a knowledge document — prose with structure:
-\`\`\`
-## Background
-Why this matters, context.
-
-## Key Points
-The actual knowledge — decisions, reasoning, details.
-
-## References
-Links, related memories, sources.
-\`\`\``;
-
-function getFormatGuide(kind) {
-  if (!kind) return DEFAULT_FORMAT;
-  const k = kind.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  return FORMAT_GUIDES[k] || DEFAULT_FORMAT;
-}
-
 server.tool(
   "create_memory",
   `Create a new memory. Brain creates folder + frontmatter, then YOU write the content.
@@ -148,7 +92,7 @@ Do NOT pass content — the response tells you the file path and format to write
     if (newTags.length) text += `\nNew tags: ${newTags.join(", ")}`;
 
     text += `\n\n⚠ NEXT STEPS — do these now before moving on:`;
-    text += `\n- [ ] Write content to ${memFile} in this format:\n\n${getFormatGuide(effectiveKind)}`;
+    text += `\n- [ ] Write content to ${memFile} in this format:\n\n${brain.getFormatGuide(effectiveKind)}`;
     text += `\n\n- [ ] Attach screenshots/images from this conversation using brain.attach_to_memory (memory_file: "${memFile}")`;
     text += `\n- [ ] Attach any other relevant files (designs, logs, etc.)`;
     text += `\n- [ ] Skip attachments if no assets exist — but check first, don't assume`;

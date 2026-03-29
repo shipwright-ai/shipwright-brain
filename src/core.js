@@ -308,6 +308,29 @@ export function remove(memFile) {
   return true;
 }
 
+const DEFAULT_FORMAT = `Write as a knowledge document — prose with structure:
+
+## Background
+Why this matters, context.
+
+## Key Points
+The actual knowledge — decisions, reasoning, details.
+
+## References
+Links, related memories, sources.`;
+
+export function getFormatGuide(kind) {
+  if (!kind) return DEFAULT_FORMAT;
+  const k = slugify(kind);
+  // Look for a format guide memory at docs/format-guides/{kind}/memory.md
+  const guideFile = path.join(DOCS_DIR, "format-guides", k, "memory.md");
+  if (fs.existsSync(guideFile)) {
+    const content = matter(fs.readFileSync(guideFile, "utf-8")).content.trim();
+    if (content) return content;
+  }
+  return DEFAULT_FORMAT;
+}
+
 export function getKinds() {
   if (cacheReady) { const k = new Set(); for (const e of cache.values()) k.add(e.kind); return [...k].sort(); }
   return [...knownKinds].sort();
