@@ -359,6 +359,14 @@ The actual knowledge — decisions, reasoning, details.
 ## References
 Links, related memories, sources.`;
 
+const CONTEXT_5W = `
+Always structure context using the 5W framework:
+> Why: what problem does this solve, what motivated it
+> What: concrete scope, deliverable, or outcome
+> Who: who needs it, who is affected, who is doing it
+> When: deadline, urgency, or priority
+> How: approach, constraints, or dependencies`;
+
 export function getFormatGuide(kind) {
   let guide = DEFAULT_FORMAT;
   if (kind) {
@@ -369,7 +377,7 @@ export function getFormatGuide(kind) {
       if (content) guide = content;
     }
   }
-  return guide;
+  return guide + "\n" + CONTEXT_5W;
 }
 
 export function getKinds() {

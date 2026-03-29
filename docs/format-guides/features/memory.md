@@ -12,7 +12,11 @@ Tag with scope and area. Check brain://overview for existing tags first — reus
 
 Write as a checklist — each deliverable is a checkbox:
 
-> Context: why this feature, who needs it, date
+> Why: what problem this solves, who needs it
+> What: concrete deliverables and scope
+> Who: target users, stakeholders
+> When: deadline or priority
+> How: technical approach, dependencies
 
 - [ ] First deliverable
 - [ ] Second deliverable

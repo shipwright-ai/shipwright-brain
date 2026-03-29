@@ -12,7 +12,11 @@ Tag with type and area. Check brain://overview for existing tags first — reuse
 
 Write as a checklist — each task is a checkbox:
 
-> Context: what this work is about, date
+> Why: motivation, what triggered this work
+> What: concrete tasks and scope
+> Who: who requested it, who is doing it
+> When: deadline or priority
+> How: approach, blockers, dependencies
 
 - [ ] First task
 - [ ] Second task

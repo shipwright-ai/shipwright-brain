@@ -12,9 +12,11 @@ Tag with severity and area. Check brain://overview for existing tags first — r
 
 Write as a checklist — each fix/investigation step is a checkbox:
 
-> Observed: what's broken
-> Expected: what should happen
-> Context: how it was discovered, date
+> Why: impact on users or system
+> What: observed vs expected behavior
+> Who: who reported it, who is affected
+> When: when it started, urgency
+> How: steps to reproduce
 
 - [ ] Reproduce the issue
 - [ ] Identify root cause

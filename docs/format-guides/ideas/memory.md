@@ -12,7 +12,11 @@ Tag with a category and area. Check brain://overview for existing tags first —
 
 Write as a checklist — each step is a checkbox:
 
-> Context: what prompted this idea, date
+> Why: what problem does this solve
+> What: the idea in concrete terms
+> Who: who benefits, who implements
+> When: urgency or timeline
+> How: approach or constraints
 
 - [ ] First concrete step
 - [ ] Second step
