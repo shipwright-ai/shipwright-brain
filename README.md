@@ -90,13 +90,13 @@ Brain creates and manages. Claude reads and edits files directly.
 
 | Tool | What it does |
 |------|-------------|
-| `create_memory` | Create memory with content, returns file path |
-| `browse_memories` | Navigate tree — kinds → summaries |
-| `search_memories` | Multi-query search, returns summaries |
-| `screenshot` | Capture URL via Playwright, optionally attach to memory |
-| `attach_to_memory` | Copy file to memory folder + add markdown reference |
-| `get_memory_graph` | Full node/edge connection map |
-| `delete_memory` | Remove + cleanup back-refs |
+| `brain.create_memory` | Create memory with content, returns file path |
+| `brain.browse_memories` | Navigate tree — kinds → summaries |
+| `brain.search_memories` | Multi-query search, returns summaries |
+| `brain.screenshot` | Capture URL via Playwright, optionally attach to memory |
+| `brain.attach_to_memory` | Copy file to memory folder + add markdown reference |
+| `brain.get_memory_graph` | Full node/edge connection map |
+| `brain.delete_memory` | Remove + cleanup back-refs |
 
 Claude edits memory content directly at `docs/{kind}/{slug}/memory.md`.
 Brain watches for changes and updates its cache automatically.
