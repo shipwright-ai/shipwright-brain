@@ -33,9 +33,39 @@ function parseCheckboxes(content) {
   return { checked, total, status: checked === total ? "done" : checked === 0 ? "not-started" : "in-progress" };
 }
 
+function computeAggregateProgress(memFile, visited = new Set()) {
+  if (visited.has(memFile)) return null;
+  visited.add(memFile);
+  const e = cache.get(memFile);
+  if (!e) return null;
+  let checked = e.progress ? e.progress.checked : 0;
+  let total = e.progress ? e.progress.total : 0;
+  for (const cf of e.children) {
+    const child = computeAggregateProgress(cf, visited);
+    if (child) { checked += child.checked; total += child.total; }
+  }
+  if (total === 0) { e.aggregateProgress = null; return null; }
+  e.aggregateProgress = { checked, total, status: checked === total ? "done" : checked === 0 ? "not-started" : "in-progress" };
+  return e.aggregateProgress;
+}
+
+function recomputeAggregateChain(memFile) {
+  const e = cache.get(memFile);
+  if (!e) return;
+  computeAggregateProgress(memFile);
+  if (e.parent) recomputeAggregateChain(e.parent);
+}
+
+function recomputeAllAggregates() {
+  for (const e of cache.values()) {
+    if (!e.parent) computeAggregateProgress(e.memory_file);
+  }
+}
+
 function rebuildCache() {
   cache.clear();
   if (fs.existsSync(DOCS_DIR)) walkDir(DOCS_DIR);
+  recomputeAllAggregates();
   cacheReady = true;
 }
 
@@ -84,9 +114,11 @@ function startWatcher() {
       if (parts.length < 2) return;
       const absDir = path.join(DOCS_DIR, ...parts.slice(0, -1));
       if (fs.existsSync(path.join(absDir, "memory.md"))) {
+        const memFile = rel(path.join(absDir, "memory.md"));
         loadEntry(absDir);
         const pd = path.dirname(absDir);
         if (fs.existsSync(path.join(pd, "memory.md"))) loadEntry(pd);
+        recomputeAggregateChain(memFile);
       } else { cache.delete(rel(path.join(absDir, "memory.md"))); }
     });
   } catch {}
@@ -157,16 +189,27 @@ export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags } 
   if (!pathOrKind) {
     if (!cacheReady) return { level: "root", kinds: [...knownKinds].sort().map(k => ({ kind: k })) };
     const counts = {};
+    const kindProgress = {};
     for (const e of cache.values()) {
       if (filterTags && filterTags.length && !filterTags.some(t => e.tags.includes(t))) continue;
       counts[e.kind] = (counts[e.kind] || 0) + 1;
+      const p = e.aggregateProgress || e.progress;
+      if (p) {
+        if (!kindProgress[e.kind]) kindProgress[e.kind] = { checked: 0, total: 0 };
+        kindProgress[e.kind].checked += p.checked;
+        kindProgress[e.kind].total += p.total;
+      }
     }
-    return { level: "root", kinds: Object.entries(counts).map(([k, n]) => ({ kind: k, count: n })).sort((a, b) => a.kind.localeCompare(b.kind)) };
+    return { level: "root", kinds: Object.entries(counts).map(([k, n]) => {
+      const p = kindProgress[k];
+      const progress = p ? { checked: p.checked, total: p.total, status: p.checked === p.total ? "done" : p.checked === 0 ? "not-started" : "in-progress" } : null;
+      return { kind: k, count: n, progress };
+    }).sort((a, b) => a.kind.localeCompare(b.kind)) };
   }
   if (pathOrKind.endsWith("memory.md")) {
     const entry = cache.get(pathOrKind);
     if (!entry) return null;
-    let items = entry.children.map(cf => { const c = cache.get(cf); return c ? { memory_file: c.memory_file, title: c.title, summary: c.summary, tags: c.tags, progress: c.progress, children: c.children.length, at: c.at } : null; }).filter(Boolean);
+    let items = entry.children.map(cf => { const c = cache.get(cf); return c ? { memory_file: c.memory_file, title: c.title, summary: c.summary, tags: c.tags, progress: c.progress, aggregateProgress: c.aggregateProgress, children: c.children.length, at: c.at } : null; }).filter(Boolean);
     if (filterTags && filterTags.length) items = items.filter(m => filterTags.some(t => m.tags.includes(t)));
     items.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
     const total = items.length;
@@ -175,7 +218,7 @@ export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags } 
   let items = [];
   for (const e of cache.values()) {
     if (e.kind !== pathOrKind || e.depth !== 2) continue;
-    items.push({ memory_file: e.memory_file, title: e.title, summary: e.summary, tags: e.tags, progress: e.progress, children: e.children.length, at: e.at });
+    items.push({ memory_file: e.memory_file, title: e.title, summary: e.summary, tags: e.tags, progress: e.progress, aggregateProgress: e.aggregateProgress, children: e.children.length, at: e.at });
   }
   if (filterTags && filterTags.length) items = items.filter(m => filterTags.some(t => m.tags.includes(t)));
   items.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
@@ -189,11 +232,12 @@ export function search({ queries, tags, kind, status, limit = 20, offset = 0 }) 
     if (kind && e.kind !== kind) continue;
     if (tags && tags.length && !tags.some(t => e.tags.includes(t))) continue;
     if (status) {
-      if (!e.progress) continue;
-      if (status !== e.progress.status) continue;
+      const effective = e.aggregateProgress || e.progress;
+      if (!effective) continue;
+      if (status !== effective.status) continue;
     }
     if (norm.length > 0) { const hay = `${e.title} ${e.summary} ${e.tags.join(" ")} ${e.kind} ${e.slug}`.toLowerCase(); if (!norm.some(q => hay.includes(q))) continue; }
-    results.push({ memory_file: e.memory_file, title: e.title, summary: e.summary, kind: e.kind, tags: e.tags, progress: e.progress, at: e.at });
+    results.push({ memory_file: e.memory_file, title: e.title, summary: e.summary, kind: e.kind, tags: e.tags, progress: e.progress, aggregateProgress: e.aggregateProgress, at: e.at });
   }
   const total = results.length;
   return { memories: results.slice(offset, offset + limit), total, hasMore: offset + limit < total };

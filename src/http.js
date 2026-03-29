@@ -106,7 +106,7 @@ function renderHome(){
 $('crumbs').innerHTML='<span class="cur">Brain</span>';
 if(!data||!data.kinds||!data.kinds.length){$('content').innerHTML='<div class="empty">Brain is empty.</div>';return}
 $('content').innerHTML='<div class="kinds">'+data.kinds.map(k=>
-'<div class="kcard" onclick="go(\\''+esc(k.kind)+'\\')"><div class="kname">'+esc(k.kind)+'</div><div class="kn">'+(k.count||'?')+' memories</div></div>'
+'<div class="kcard" onclick="go(\\''+esc(k.kind)+'\\')"><div class="kname">'+esc(k.kind)+(k.progress?'  '+progressBadge(k.progress):'')+'</div><div class="kn">'+(k.count||'?')+' memories</div></div>'
 ).join('')+'</div>'}
 
 async function renderKind(kind){
@@ -164,12 +164,13 @@ const pct=Math.round(p.checked/p.total*100);
 const col=pct===100?'#22c55e':pct===0?'#71717a':'#f59e0b';
 return '<span class="tag" style="border:1px solid '+col+';color:'+col+'">'+p.checked+'/'+p.total+'</span>'}
 
-function renderList(items){return '<div class="list">'+items.map(m=>
-'<div class="row" onclick="go(\\''+esc(m.memory_file)+'\\')"><div class="rtitle">'+esc(m.title)+(m.progress?'  '+progressBadge(m.progress):'')+'</div>'+
+function renderList(items){return '<div class="list">'+items.map(m=>{
+const prog=m.aggregateProgress||m.progress;
+return '<div class="row" onclick="go(\\''+esc(m.memory_file)+'\\')"><div class="rtitle">'+esc(m.title)+(prog?'  '+progressBadge(prog):'')+'</div>'+
 (m.summary?'<div class="rsum">'+esc(m.summary)+'</div>':'')+
 '<div class="rmeta">'+(m.tags||[]).map(t=>'<span class="tag">'+esc(t)+'</span>').join('')+
 (m.children?'<span class="tag">+'+m.children+' sub</span>':'')+'</div></div>'
-).join('')+'</div>'}
+}).join('')+'</div>'}
 
 function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 load();setInterval(load,5000);
@@ -219,7 +220,7 @@ const server = http.createServer(async (req, res) => {
     const content = brain.readContent(f);
     const children = (entry.children || []).map(cf => {
       const c = brain.getEntry(cf);
-      return c ? { memory_file: c.memory_file, title: c.title, summary: c.summary, tags: c.tags, progress: c.progress, children: c.children.length } : null;
+      return c ? { memory_file: c.memory_file, title: c.title, summary: c.summary, tags: c.tags, progress: c.progress, aggregateProgress: c.aggregateProgress, children: c.children.length } : null;
     }).filter(Boolean);
     return json(res, { ...entry, content, children });
   }
