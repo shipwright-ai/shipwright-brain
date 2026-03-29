@@ -277,11 +277,17 @@ export function search({ queries, tags, kind, status, limit = 20, offset = 0 }) 
   return result;
 }
 
-export async function screenshot(url, { name, memoryFile } = {}) {
+export async function screenshot(url, { name, memoryFile, clicks } = {}) {
   const { chromium } = await import("playwright");
   const browser = await chromium.launch();
   const page = await browser.newPage();
   await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+  if (clicks && clicks.length) {
+    for (const selector of clicks) {
+      await page.click(selector);
+      await page.waitForTimeout(500);
+    }
+  }
   const filename = (name || `screenshot-${Date.now()}`).replace(/[^a-z0-9_-]/gi, "-") + ".png";
   let savePath;
   if (memoryFile) {

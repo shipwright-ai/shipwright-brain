@@ -181,15 +181,17 @@ server.tool(
   "screenshot",
   `Capture a screenshot of a URL using Playwright.
 Without memory_file: saves to temp, returns file path.
-With memory_file: saves next to that memory and appends image reference to the markdown.`,
+With memory_file: saves next to that memory and appends image reference to the markdown.
+Use clicks to interact with the page before capturing — e.g. open a menu, expand a section, navigate to a specific state.`,
   {
     url: z.string().describe("URL to screenshot"),
     name: z.string().optional().describe("Filename without .png"),
     memory_file: z.string().optional().describe("Attach to this memory. Omit for temp file."),
+    clicks: z.array(z.string()).optional().describe('CSS selectors to click in order before capturing. E.g. [".avatar", ".settings-menu"] to open avatar dropdown then click settings.'),
   },
-  async ({ url, name, memory_file }) => {
+  async ({ url, name, memory_file, clicks }) => {
     try {
-      const filePath = await brain.screenshot(url, { name, memoryFile: memory_file });
+      const filePath = await brain.screenshot(url, { name, memoryFile: memory_file, clicks });
       if (filePath === null) return { content: [{ type: "text", text: `Memory not found: ${memory_file}` }] };
       return { content: [{ type: "text", text: filePath }] };
     } catch (e) {
