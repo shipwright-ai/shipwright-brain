@@ -8,8 +8,7 @@ by: system
 at: "2026-03-29T00:00:00.000Z"
 ---
 
-Prefix title with severity: Critical: ..., Bug: ..., Minor: ...
-Tag with severity (lowercase): critical, bug, minor.
+Tag with severity: critical, bug, minor.
 Also tag with area if known: auth, api, ui, data, infra, etc.
 
 Write as a checklist — each fix/investigation step is a checkbox:

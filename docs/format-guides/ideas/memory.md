@@ -8,8 +8,8 @@ by: system
 at: "2026-03-29T00:00:00.000Z"
 ---
 
-Prefix title with category: Bug: ..., Feature: ..., Improvement: ..., Epic: ..., Research: ..., Chore: ...
-Tag with the same category (lowercase): bug, feature, improvement, epic, research, chore.
+Tag with a category: bug, feature, improvement, epic, research, chore.
+Also tag with area if known: auth, api, ui, data, infra, etc.
 
 Write as a checklist — each step is a checkbox:
 
