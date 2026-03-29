@@ -440,7 +440,16 @@ function matchesStatus(entry, status) {
   return effective.status === status;
 }
 
-export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags, status } = {}) {
+function sortItems(items, sort) {
+  const [field, dir] = (sort || "modified:desc").split(":");
+  const asc = dir === "asc" ? 1 : -1;
+  if (field === "title") return items.sort((a, b) => asc * (a.title || "").localeCompare(b.title || ""));
+  if (field === "created") return items.sort((a, b) => asc * String(a.at || "").localeCompare(String(b.at || "")));
+  // default: modified
+  return items.sort((a, b) => asc * String(a.modified || a.at || "").localeCompare(String(b.modified || b.at || "")));
+}
+
+export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags, status, sort } = {}) {
   if (!pathOrKind) {
     if (!cacheReady) return { level: "root", kinds: [...knownKinds].sort().map(k => ({ kind: k })) };
     const counts = {};
@@ -468,7 +477,7 @@ export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags, s
     let items = entry.children.map(cf => { const c = cache.get(cf); return c ? { memory_file: c.memory_file, title: c.title, summary: c.summary, tags: c.tags, progress: c.progress, aggregateProgress: c.aggregateProgress, children: c.children.length, at: c.at, modified: c.modified } : null; }).filter(Boolean);
     if (filterTags && filterTags.length) items = items.filter(m => filterTags.some(t => m.tags.includes(t)));
     if (status) items = items.filter(m => matchesStatus(m, status));
-    items.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+    sortItems(items, sort);
     const total = items.length;
     const result = { level: "memory", memory_file: pathOrKind, title: entry.title, children: items.slice(offset, offset + limit), total, limit, offset, hasMore: offset + limit < total };
     if (offset === 0) result.facets = computeFacets(items);
@@ -481,14 +490,14 @@ export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags, s
   }
   if (filterTags && filterTags.length) items = items.filter(m => filterTags.some(t => m.tags.includes(t)));
   if (status) items = items.filter(m => matchesStatus(m, status));
-  items.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  sortItems(items, sort);
   const total = items.length;
   const result = { level: "kind", kind: pathOrKind, memories: items.slice(offset, offset + limit), total, limit, offset, hasMore: offset + limit < total };
   if (offset === 0) result.facets = computeFacets(items);
   return result;
 }
 
-export function search({ queries, tags, kind, status, limit = 20, offset = 0 }) {
+export function search({ queries, tags, kind, status, sort, limit = 20, offset = 0 }) {
   const results = [], norm = (queries || []).map(q => q.toLowerCase());
   for (const e of cache.values()) {
     if (kind && e.kind !== kind) continue;
@@ -497,6 +506,7 @@ export function search({ queries, tags, kind, status, limit = 20, offset = 0 }) 
     if (norm.length > 0) { const hay = `${e.title} ${e.summary} ${e.tags.join(" ")} ${e.kind} ${e.slug}`.toLowerCase(); if (!norm.some(q => hay.includes(q))) continue; }
     results.push({ memory_file: e.memory_file, title: e.title, summary: e.summary, kind: e.kind, tags: e.tags, progress: e.progress, aggregateProgress: e.aggregateProgress, at: e.at, modified: e.modified });
   }
+  sortItems(results, sort);
   const total = results.length;
   const result = { memories: results.slice(offset, offset + limit), total, limit, offset, hasMore: offset + limit < total };
   if (offset === 0) result.facets = computeFacets(results);

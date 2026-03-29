@@ -198,7 +198,8 @@ const server = http.createServer(async (req, res) => {
     const offset = parseInt(params.get("offset")) || 0;
     const tags = params.get("tags") ? params.get("tags").split(",") : undefined;
     const status = params.get("status") || undefined;
-    const r = brain.browse(p, { limit, offset, tags, status });
+    const sort = params.get("sort") || undefined;
+    const r = brain.browse(p, { limit, offset, tags, status, sort });
     if (!r) return json(res, { error: "Not found" }, 404);
     return json(res, r);
   }
@@ -211,7 +212,8 @@ const server = http.createServer(async (req, res) => {
     const status = params.get("status") || undefined;
     const limit = parseInt(params.get("limit")) || 20;
     const offset = parseInt(params.get("offset")) || 0;
-    return json(res, brain.search({ queries, tags, kind, status, limit, offset }));
+    const sort = params.get("sort") || undefined;
+    return json(res, brain.search({ queries, tags, kind, status, sort, limit, offset }));
   }
 
   if (pathname === "/api/semantic-search") {
