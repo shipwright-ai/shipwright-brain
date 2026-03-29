@@ -93,9 +93,10 @@ Brain creates and manages. Claude reads and edits files directly.
 
 | Tool | What it does |
 |------|-------------|
-| `create_memory` | Create memory skeleton, returns file path + format guide + next steps |
+| `create_memory` | Create memory with duplicate detection + auto-refs + format guide |
 | `browse_memories` | Navigate tree -- kinds, memories, sub-memories. Filter by tags and status |
-| `search_memories` | Multi-query search with tag, kind, and status filters |
+| `search_memories` | Multi-query keyword search with tag, kind, and status filters |
+| `semantic_search` | Meaning-based search using embeddings -- finds related even without keyword match |
 | `screenshot` | Capture URL via Playwright with optional click sequence |
 | `attach_to_memory` | Copy any file to memory folder + add markdown reference |
 | `get_memory_graph` | Full node/edge connection map |
@@ -139,6 +140,40 @@ First page of browse/search results includes facets: tag counts and status
 breakdown for the filtered result set. Enables UI filter chips without
 client-side filtering.
 
+### Semantic Search and Embeddings
+
+Local embeddings via Xenova/all-MiniLM-L6-v2 (CoreML on Mac, CPU elsewhere).
+Model downloads once (~80MB), embeddings computed async and cached to disk.
+`semantic_search` finds memories by meaning -- "how do we handle auth?" matches
+memories about tokens, sessions, and login even without the word "auth".
+
+### Duplicate Detection
+
+`create_memory` automatically checks for similar existing memories:
+- **90%+ similar**: blocks creation, suggests merging with existing memory
+- **60-89% similar**: creates the memory, auto-adds related as refs, suggests as potential parents
+- Claude decides the relationship -- Brain just surfaces the connections
+
+Use `confirm_create: true` to bypass duplicate check.
+
+### Auto-Cleanup on Reorganization
+
+When creating a memory with the same slug as an existing one (e.g. moving
+to a different parent), Brain auto-deletes the old one if it was created
+< 1 hour ago and never edited. Handles reorganization without manual cleanup.
+
+### Bidirectional Refs
+
+Refs sync automatically in both directions. Add a ref in frontmatter or
+link to a `memory.md` in content -- Brain adds the back-ref on the target.
+Remove a ref -- Brain cleans up the other side. The graph stays consistent.
+
+### Disk Cache
+
+JSONL cache in `.cache/` for instant MCP startup. Cache restored synchronously,
+verification deferred to background. Embeddings persisted in cache -- computed
+once, reused across restarts.
+
 ### Screenshot with Interaction
 
 The screenshot tool accepts a `clicks` param -- a list of CSS selectors
@@ -160,8 +195,9 @@ All endpoints return JSON with CORS headers.
 | Endpoint | Params | Description |
 |----------|--------|-------------|
 | `GET /api/browse` | `path`, `tags`, `status`, `limit`, `offset` | Browse memory tree |
-| `GET /api/search` | `q`, `tags`, `kind`, `status`, `limit`, `offset` | Search memories |
-| `GET /api/memory` | `f` (memory_file) | Full memory detail with content |
+| `GET /api/search` | `q`, `tags`, `kind`, `status`, `limit`, `offset` | Keyword search |
+| `GET /api/semantic-search` | `q`, `tags`, `kind`, `status`, `limit`, `offset` | Semantic search |
+| `GET /api/memory` | `f` (memory_file) | Full detail with rich refs and children |
 | `GET /api/graph` | -- | Full reference graph |
 | `GET /api/overview` | -- | Stats, kinds, tags |
 | `GET /file` | `p` (file path) | Serve attachments |
