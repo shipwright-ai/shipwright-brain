@@ -324,8 +324,6 @@ The actual knowledge — decisions, reasoning, details.
 ## References
 Links, related memories, sources.`;
 
-const KEEP_UPDATED = `\nIMPORTANT: If you learn new information relevant to this memory during the session, update the file immediately. Memories are living documents.`;
-
 export function getFormatGuide(kind) {
   let guide = DEFAULT_FORMAT;
   if (kind) {
@@ -336,7 +334,7 @@ export function getFormatGuide(kind) {
       if (content) guide = content;
     }
   }
-  return guide + KEEP_UPDATED;
+  return guide;
 }
 
 export function getKinds() {
