@@ -324,16 +324,19 @@ The actual knowledge — decisions, reasoning, details.
 ## References
 Links, related memories, sources.`;
 
+const KEEP_UPDATED = `\nIMPORTANT: If you learn new information relevant to this memory during the session, update the file immediately. Memories are living documents.`;
+
 export function getFormatGuide(kind) {
-  if (!kind) return DEFAULT_FORMAT;
-  const k = slugify(kind);
-  // Look for a format guide memory at docs/format-guides/{kind}/memory.md
-  const guideFile = path.join(DOCS_DIR, "format-guides", k, "memory.md");
-  if (fs.existsSync(guideFile)) {
-    const content = matter(fs.readFileSync(guideFile, "utf-8")).content.trim();
-    if (content) return content;
+  let guide = DEFAULT_FORMAT;
+  if (kind) {
+    const k = slugify(kind);
+    const guideFile = path.join(DOCS_DIR, "format-guides", k, "memory.md");
+    if (fs.existsSync(guideFile)) {
+      const content = matter(fs.readFileSync(guideFile, "utf-8")).content.trim();
+      if (content) guide = content;
+    }
   }
-  return DEFAULT_FORMAT;
+  return guide + KEEP_UPDATED;
 }
 
 export function getKinds() {
