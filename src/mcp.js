@@ -93,8 +93,7 @@ Do NOT pass content — the response tells you the file path and format to write
 
     text += `\n\n⚠ NEXT STEPS — do these now before moving on:`;
     text += `\n- [ ] Write content to ${memFile} in this format:\n\n${brain.getFormatGuide(effectiveKind)}`;
-    text += `\n\n- [ ] Attach screenshots/images from this conversation using brain.attach_to_memory (memory_file: "${memFile}")`;
-    text += `\n- [ ] Attach any other relevant files (designs, logs, etc.)`;
+    text += `\n\n- [ ] Attach ALL relevant files from this conversation using brain.attach_to_memory (memory_file: "${memFile}") — any file type: images, screenshots, STL, PDF, CSV, code, configs, designs, logs, etc.`;
     text += `\n- [ ] Skip attachments if no assets exist — but check first, don't assume`;
     text += `\n\nIMPORTANT: If you learn new information relevant to this memory during the session, update the file immediately. Memories are living documents.`;
 
