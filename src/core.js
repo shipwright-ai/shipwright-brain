@@ -158,7 +158,7 @@ export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags } 
     if (!entry) return null;
     let items = entry.children.map(cf => { const c = cache.get(cf); return c ? { memory_file: c.memory_file, title: c.title, summary: c.summary, tags: c.tags, children: c.children.length, at: c.at } : null; }).filter(Boolean);
     if (filterTags && filterTags.length) items = items.filter(m => filterTags.some(t => m.tags.includes(t)));
-    items.sort((a, b) => (b.at || "").localeCompare(a.at || ""));
+    items.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
     const total = items.length;
     return { level: "memory", memory_file: pathOrKind, title: entry.title, children: items.slice(offset, offset + limit), total, hasMore: offset + limit < total };
   }
@@ -168,7 +168,7 @@ export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags } 
     items.push({ memory_file: e.memory_file, title: e.title, summary: e.summary, tags: e.tags, children: e.children.length, at: e.at });
   }
   if (filterTags && filterTags.length) items = items.filter(m => filterTags.some(t => m.tags.includes(t)));
-  items.sort((a, b) => (b.at || "").localeCompare(a.at || ""));
+  items.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
   const total = items.length;
   return { level: "kind", kind: pathOrKind, memories: items.slice(offset, offset + limit), total, hasMore: offset + limit < total };
 }
