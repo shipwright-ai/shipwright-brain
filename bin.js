@@ -26,29 +26,27 @@ if (command === "init") {
   fs.mkdirSync(absDocsDir, { recursive: true });
   console.log(`✓ Created docs directory: ${absDocsDir}`);
 
-  // Add MCP config to .claude/settings.json
-  const claudeDir = path.resolve(".claude");
-  const settingsPath = path.join(claudeDir, "settings.json");
-  fs.mkdirSync(claudeDir, { recursive: true });
+  // Add MCP config to .mcp.json (project-scoped MCP servers)
+  const mcpPath = path.resolve(".mcp.json");
 
-  let settings = {};
-  if (fs.existsSync(settingsPath)) {
+  let mcpConfig = {};
+  if (fs.existsSync(mcpPath)) {
     try {
-      settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+      mcpConfig = JSON.parse(fs.readFileSync(mcpPath, "utf-8"));
     } catch {
-      console.log("⚠ Could not parse .claude/settings.json — creating new");
+      console.log("⚠ Could not parse .mcp.json — creating new");
     }
   }
 
-  if (!settings.mcpServers) settings.mcpServers = {};
+  if (!mcpConfig.mcpServers) mcpConfig.mcpServers = {};
 
-  settings.mcpServers["brain"] = {
+  mcpConfig.mcpServers["brain"] = {
     command: "npx",
     args: ["shipwright-brain", "mcp", docsDir],
   };
 
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf-8");
-  console.log(`✓ Added MCP server to .claude/settings.json`);
+  fs.writeFileSync(mcpPath, JSON.stringify(mcpConfig, null, 2), "utf-8");
+  console.log(`✓ Added MCP server to .mcp.json`);
 
   // Install Playwright Chromium for screenshot tool
   console.log(`  Installing Playwright Chromium (for screenshots)...`);
