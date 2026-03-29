@@ -150,7 +150,7 @@ Check brain://overview for available tags before filtering.`,
 
     if (r.level === "root") {
       if (!r.kinds.length) return { content: [{ type: "text", text: "Brain is empty." }] };
-      const text = r.kinds.map((k) => `${k.kind}/${k.count ? ' (' + k.count + ')' : ''}`).join("\n");
+      const text = r.kinds.map((k) => `${k.kind} (${k.count} direct, ${k.totalCount} total)`).join("\n");
       return { content: [{ type: "text", text: `Kinds:\n${text}` }] };
     }
 
