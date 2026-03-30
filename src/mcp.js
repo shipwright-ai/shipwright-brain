@@ -13,6 +13,7 @@ import { z } from "zod";
 import * as brain from "./core.js";
 
 const dir = process.env.BRAIN_DOCS_DIR || process.argv[2] || "./docs";
+const CLAUDE_REMINDER = `\n\n---\nReminder: If you changed scope, made decisions, or completed work related to any of these memories, update them now. Check off completed items, add new steps, update context.`;
 brain.init(dir);
 
 const server = new McpServer({
@@ -170,7 +171,7 @@ Check brain://overview for available tags before filtering.`,
 
     if (r.total) text = `${r.total} total, showing ${items.length}:\n\n${text}`;
     if (r.hasMore) text += `\n\n... more (offset: ${(offset || 0) + items.length})`;
-    return { content: [{ type: "text", text }] };
+    return { content: [{ type: "text", text: text + CLAUDE_REMINDER }] };
   }
 );
 
@@ -209,7 +210,7 @@ When the developer asks "what should I do next?" or similar:
 
     text = `${r.total} total, showing ${r.memories.length}:\n\n${text}`;
     if (r.hasMore) text += `\n\n... more results available (offset: ${(offset || 0) + r.memories.length})`;
-    return { content: [{ type: "text", text }] };
+    return { content: [{ type: "text", text: text + CLAUDE_REMINDER }] };
   }
 );
 
@@ -240,7 +241,7 @@ Use this when keyword search returns too few results or the query is conceptual.
 
     text = `${r.total} total, showing ${r.memories.length}:\n\n${text}`;
     if (r.hasMore) text += `\n\n... more results available (offset: ${(offset || 0) + r.memories.length})`;
-    return { content: [{ type: "text", text }] };
+    return { content: [{ type: "text", text: text + CLAUDE_REMINDER }] };
   }
 );
 
