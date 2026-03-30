@@ -6,20 +6,30 @@ Part of the [Shipwright](https://github.com/shipwright-ai/shipwright) a la carte
 
 ## Install
 
-### Via Shipwright (recommended)
+### Plugin (recommended)
 
-If you're using [Shipwright](https://github.com/shipwright-ai/shipwright), Brain is set up during Layer 2 of `/shipwright:setup`. Nothing manual needed.
+In Claude Code:
+```
+/plugin install shipwright-brain
+/shipwright-brain:setup
+```
 
-### Standalone
+Setup asks for docs directory (default `./docs`) and port (default `3111`). That's it — Brain tools are available as `brain.create_memory`, `brain.browse_memories`, etc.
+
+### Via Shipwright
+
+If you're using [Shipwright](https://github.com/shipwright-ai/shipwright), Brain is set up during Layer 2 of `/shipwright:setup`.
+
+### npx (no plugin)
 
 ```bash
 cd your-project
-npx github:shipwright-ai/shipwright-brain init
+npx shipwright-brain init
 ```
 
-Brain creates a `docs/` folder and wires itself into Claude Code via `.mcp.json`. Next session, Claude has memory.
+Creates `docs/` and wires Brain into `.mcp.json`. Restart Claude Code for MCP to pick it up.
 
-### Manual setup
+### Manual
 
 Add to `.mcp.json` in your project root:
 
@@ -28,7 +38,7 @@ Add to `.mcp.json` in your project root:
   "mcpServers": {
     "brain": {
       "command": "npx",
-      "args": ["github:shipwright-ai/shipwright-brain", "mcp", "--dir", "./docs"]
+      "args": ["shipwright-brain", "mcp", "--dir", "./docs"]
     }
   }
 }
