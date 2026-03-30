@@ -138,7 +138,9 @@ No path: kinds with counts (filtered by tags/status if provided).
 Kind string: memories in that kind.
 memory_file: sub-memories of that memory.
 Tags filter at every level — only show memories matching any of the given tags.
-Check brain://overview for available tags before filtering.`,
+Status filter: use the status parameter (not-started, in-progress, done) — status is NOT a tag.
+Check brain://overview for available tags before filtering.
+When the developer asks "what's next?" — use search_memories with status "in-progress" first, then "not-started".`,
   {
     path: z.string().optional().describe('Kind string (e.g. "decisions") or memory_file. Omit for top-level.'),
     tags: z.array(z.string()).optional().describe("Filter by tags (any match)"),
@@ -180,7 +182,7 @@ server.tool(
   `Search memories. Multiple queries supported — matches if ANY query hits (OR logic).
 Searches title, summary, tags, kind, slug from cache. Returns max 20 results per call.
 Use offset to paginate. To read full content, open the memory_file directly.
-Filter by status to find actionable items: "not-started", "in-progress", or "done".
+Status filter: use the status parameter (not-started, in-progress, done) — status is NOT a tag.
 Status is auto-detected from checkboxes: 0/N = not-started, some = in-progress, all = done.
 Check brain://overview for available tags and kinds before filtering.
 When the developer asks "what should I do next?" or similar:
@@ -191,7 +193,7 @@ When the developer asks "what should I do next?" or similar:
     queries: z.array(z.string()).describe('Search queries, e.g. ["auth", "JWT", "login"]'),
     tags: z.array(z.string()).optional().describe("Filter by tags (any match)"),
     kind: z.string().optional().describe("Filter by kind"),
-    status: z.enum(["not-started", "in-progress", "done"]).optional().describe("Filter by checkbox status: not-started (0/N), in-progress (some/N), done (N/N)"),
+    status: z.enum(["not-started", "in-progress", "done"]).optional().describe("Filter by checkbox status"),
     sort: z.enum(["recent", "oldest"]).optional().describe("Sort by modified date: recent (default) or oldest first"),
     limit: z.number().optional().describe("Max results (default 20)"),
     offset: z.number().optional().describe("Skip N results for pagination (default 0)"),
