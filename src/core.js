@@ -461,6 +461,7 @@ export function create({ title, summary, content, kind, parent, tags, refs, by }
 
 function computeFacets(items) {
   const tagCounts = {};
+  const agentCounts = {};
   const statusCounts = { "not-started": 0, "in-progress": 0, "done": 0, "no-progress": 0 };
   for (const m of items) {
     const tags = m.tags || [];
@@ -468,9 +469,16 @@ function computeFacets(items) {
     const p = m.aggregateProgress || m.progress;
     if (p) statusCounts[p.status]++;
     else statusCounts["no-progress"]++;
+    const e = cache.get(m.memory_file);
+    if (e && e.sections) {
+      for (const s of e.sections) {
+        if (s.agent) agentCounts[s.agent] = (agentCounts[s.agent] || 0) + 1;
+      }
+    }
   }
   return {
     tags: Object.entries(tagCounts).map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count),
+    agents: Object.entries(agentCounts).map(([agent, count]) => ({ agent, count })).sort((a, b) => b.count - a.count),
     status: statusCounts,
   };
 }
