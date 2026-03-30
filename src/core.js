@@ -515,6 +515,7 @@ export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags, s
     for (const e of cache.values()) {
       if (filterTags && filterTags.length && !filterTags.some(t => e.tags.includes(t))) continue;
       if (!matchesStatus(e, status)) continue;
+      if (!matchesAgent(e, agent)) continue;
       totalCounts[e.kind] = (totalCounts[e.kind] || 0) + 1;
       if (e.depth === 2) directCounts[e.kind] = (directCounts[e.kind] || 0) + 1;
       const p = e.aggregateProgress || e.progress;
