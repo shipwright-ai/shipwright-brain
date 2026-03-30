@@ -504,42 +504,63 @@ export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags, s
   return result;
 }
 
-export function search({ queries, tags, kind, status, sort, limit = 20, offset = 0 }) {
-  const results = [], norm = (queries || []).map(q => q.toLowerCase());
+export async function search({ query, tags, kind, status, sort, limit = 20, offset = 0 }) {
+  const hasQuery = query && query.trim().length > 0;
+  const queryLower = hasQuery ? query.toLowerCase() : "";
+  const scored = new Map();
+
+  // Keyword pass (sync, instant)
   for (const e of cache.values()) {
     if (kind && e.kind !== kind) continue;
     if (tags && tags.length && !tags.some(t => e.tags.includes(t))) continue;
     if (!matchesStatus(e, status)) continue;
-    if (norm.length > 0) { const hay = `${e.title} ${e.summary} ${e.tags.join(" ")} ${e.kind} ${e.slug}`.toLowerCase(); if (!norm.some(q => hay.includes(q))) continue; }
-    results.push({ memory_file: e.memory_file, title: e.title, summary: e.summary, kind: e.kind, tags: e.tags, progress: e.progress, aggregateProgress: e.aggregateProgress, at: e.at, modified: e.modified });
+    if (hasQuery) {
+      const hay = `${e.title} ${e.summary} ${e.tags.join(" ")} ${e.kind} ${e.slug}`.toLowerCase();
+      if (!hay.includes(queryLower)) continue;
+    }
+    const item = { memory_file: e.memory_file, title: e.title, summary: e.summary, kind: e.kind, tags: e.tags, progress: e.progress, aggregateProgress: e.aggregateProgress, at: e.at, modified: e.modified };
+    scored.set(e.memory_file, { item, keyword: hasQuery ? 0.5 : 0, semantic: 0 });
   }
-  sortItems(results, sort);
+
+  // Semantic pass (async, may fail on cold start)
+  if (hasQuery) {
+    try {
+      const queryEmbedding = await embed(query);
+      for (const e of cache.values()) {
+        if (kind && e.kind !== kind) continue;
+        if (tags && tags.length && !tags.some(t => e.tags.includes(t))) continue;
+        if (!matchesStatus(e, status)) continue;
+        const sim = e.embedding ? cosineSimilarity(queryEmbedding, e.embedding) : 0;
+        if (sim <= 0.1) continue;
+        const existing = scored.get(e.memory_file);
+        if (existing) {
+          existing.semantic = sim;
+        } else {
+          const item = { memory_file: e.memory_file, title: e.title, summary: e.summary, kind: e.kind, tags: e.tags, progress: e.progress, aggregateProgress: e.aggregateProgress, at: e.at, modified: e.modified };
+          scored.set(e.memory_file, { item, keyword: 0, semantic: sim });
+        }
+      }
+    } catch { /* embeddings not ready — keyword results still returned */ }
+  }
+
+  // Merge scores: max(keyword, semantic) + 0.1 boost if both matched
+  const results = [];
+  for (const { item, keyword, semantic } of scored.values()) {
+    const both = keyword > 0 && semantic > 0 ? 0.1 : 0;
+    const score = Math.max(keyword, semantic) + both;
+    item.score = hasQuery ? Math.round(score * 1000) / 1000 : undefined;
+    results.push(item);
+  }
+
+  if (hasQuery) {
+    results.sort((a, b) => b.score - a.score);
+  } else {
+    sortItems(results, sort);
+  }
+
   const total = results.length;
   const result = { memories: results.slice(offset, offset + limit), total, limit, offset, hasMore: offset + limit < total };
   if (offset === 0) result.facets = computeFacets(results);
-  return result;
-}
-
-export async function semanticSearch({ query, tags, kind, status, limit = 20, offset = 0 }) {
-  const queryEmbedding = await embed(query);
-  const scored = [];
-  for (const e of cache.values()) {
-    if (kind && e.kind !== kind) continue;
-    if (tags && tags.length && !tags.some(t => e.tags.includes(t))) continue;
-    if (!matchesStatus(e, status)) continue;
-    // Hybrid: semantic + keyword
-    const semantic = e.embedding ? cosineSimilarity(queryEmbedding, e.embedding) : 0;
-    const hay = `${e.title} ${e.summary} ${e.tags.join(" ")} ${e.kind} ${e.slug}`.toLowerCase();
-    const keyword = hay.includes(query.toLowerCase()) ? 0.3 : 0;
-    const score = semantic + keyword;
-    if (score > 0.1) {
-      scored.push({ memory_file: e.memory_file, title: e.title, summary: e.summary, kind: e.kind, tags: e.tags, progress: e.progress, aggregateProgress: e.aggregateProgress, at: e.at, modified: e.modified, score: Math.round(score * 1000) / 1000 });
-    }
-  }
-  scored.sort((a, b) => b.score - a.score);
-  const total = scored.length;
-  const result = { memories: scored.slice(offset, offset + limit), total, limit, offset, hasMore: offset + limit < total };
-  if (offset === 0) result.facets = computeFacets(scored);
   return result;
 }
 
@@ -652,15 +673,31 @@ Always structure context using this framework:
 
 export function getFormatGuide(kind) {
   let guide = DEFAULT_FORMAT;
+  let newGuideCreated = null;
   if (kind) {
     const k = slugify(kind);
-    const guideFile = path.join(DOCS_DIR, "format-guides", k, "memory.md");
+    const guideDir = path.join(DOCS_DIR, "format-guides", k);
+    const guideFile = path.join(guideDir, "memory.md");
     if (fs.existsSync(guideFile)) {
       const content = matter(fs.readFileSync(guideFile, "utf-8")).content.trim();
       if (content) guide = content;
+    } else {
+      fs.mkdirSync(guideDir, { recursive: true });
+      const fm = {
+        title: `${k} format guide`,
+        summary: `Auto-generated format template for ${k} memories — customize this file`,
+        kind: "format-guides",
+        tags: ["format-guide"],
+        refs: [],
+        by: "system",
+        at: new Date().toISOString(),
+      };
+      fs.writeFileSync(guideFile, matter.stringify(DEFAULT_FORMAT, fm), "utf-8");
+      loadEntry(guideDir);
+      newGuideCreated = rel(guideFile);
     }
   }
-  return guide + "\n" + CONTEXT_5W;
+  return { text: guide + "\n" + CONTEXT_5W, newGuideCreated };
 }
 
 export function getKinds() {

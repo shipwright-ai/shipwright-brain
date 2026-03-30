@@ -205,25 +205,14 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (pathname === "/api/search") {
-    const q = params.get("q") || "";
-    const queries = q.split(/\s+/).filter(Boolean);
+    const query = params.get("q") || undefined;
     const tags = params.get("tags") ? params.get("tags").split(",") : undefined;
     const kind = params.get("kind") || undefined;
     const status = params.get("status") || undefined;
     const limit = parseInt(params.get("limit")) || 20;
     const offset = parseInt(params.get("offset")) || 0;
     const sort = params.get("sort") || undefined;
-    return json(res, brain.search({ queries, tags, kind, status, sort, limit, offset }));
-  }
-
-  if (pathname === "/api/semantic-search") {
-    const q = params.get("q") || "";
-    const tags = params.get("tags") ? params.get("tags").split(",") : undefined;
-    const kind = params.get("kind") || undefined;
-    const status = params.get("status") || undefined;
-    const limit = parseInt(params.get("limit")) || 20;
-    const offset = parseInt(params.get("offset")) || 0;
-    return json(res, await brain.semanticSearch({ query: q, tags, kind, status, limit, offset }));
+    return json(res, await brain.search({ query, tags, kind, status, sort, limit, offset }));
   }
 
   if (pathname === "/api/memory") {

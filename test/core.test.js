@@ -37,37 +37,37 @@ describe("Brain core", () => {
       assert.ok(mf.endsWith("memory.md"));
     });
 
-    it("retrieves created memory from cache", () => {
-      const r = brain.search({ queries: ["Test idea"] });
+    it("retrieves created memory from cache", async () => {
+      const r = await brain.search({ query: "Test idea" });
       assert.strictEqual(r.total, 1);
       assert.strictEqual(r.memories[0].title, "Test idea");
     });
 
-    it("reads content back", () => {
-      const r = brain.search({ queries: ["Test idea"] });
+    it("reads content back", async () => {
+      const r = await brain.search({ query: "Test idea" });
       const content = brain.readContent(r.memories[0].memory_file);
       assert.ok(content.includes("step one"));
     });
   });
 
   describe("checkbox progress", () => {
-    it("detects not-started progress", () => {
-      const r = brain.search({ queries: ["Test idea"] });
+    it("detects not-started progress", async () => {
+      const r = await brain.search({ query: "Test idea" });
       assert.ok(r.memories[0].progress);
       assert.strictEqual(r.memories[0].progress.checked, 0);
       assert.strictEqual(r.memories[0].progress.total, 2);
       assert.strictEqual(r.memories[0].progress.status, "not-started");
     });
 
-    it("filters by status", () => {
-      const r = brain.search({ queries: ["Test idea"], status: "not-started" });
+    it("filters by status", async () => {
+      const r = await brain.search({ query: "Test idea", status: "not-started" });
       assert.strictEqual(r.total, 1);
-      const r2 = brain.search({ queries: ["Test idea"], status: "done" });
+      const r2 = await brain.search({ query: "Test idea", status: "done" });
       assert.strictEqual(r2.total, 0);
     });
 
-    it("updates progress when content changes", () => {
-      const r = brain.search({ queries: ["Test idea"] });
+    it("updates progress when content changes", async () => {
+      const r = await brain.search({ query: "Test idea" });
       const mf = r.memories[0].memory_file;
       const absFile = path.resolve(TEST_ROOT, mf);
       const raw = fs.readFileSync(absFile, "utf-8");
@@ -115,9 +115,9 @@ describe("Brain core", () => {
   });
 
   describe("tags", () => {
-    it("creates memory with tags", () => {
+    it("creates memory with tags", async () => {
       brain.create({ title: "Tagged memory", summary: "Has tags", content: "", kind: "ideas", tags: ["auth", "urgent"], by: "test" });
-      const r = brain.search({ tags: ["auth"] });
+      const r = await brain.search({ tags: ["auth"] });
       assert.strictEqual(r.total, 1);
       assert.strictEqual(r.memories[0].title, "Tagged memory");
     });
@@ -195,10 +195,21 @@ describe("Brain core", () => {
   });
 
   describe("format guides", () => {
-    it("returns default format for unknown kind", () => {
-      const guide = brain.getFormatGuide("unknown-kind-xyz");
-      assert.ok(guide.includes("Why:"));
-      assert.ok(guide.includes("What:"));
+    it("returns default format and auto-creates guide for unknown kind", () => {
+      const result = brain.getFormatGuide("unknown-kind-xyz");
+      assert.ok(result.text.includes("Why:"));
+      assert.ok(result.text.includes("What:"));
+      assert.ok(result.newGuideCreated, "should report new guide created");
+      assert.ok(result.newGuideCreated.includes("format-guides/unknown-kind-xyz"));
+      // Verify file was written to disk
+      const guideFile = path.join(TEST_DOCS, "format-guides", "unknown-kind-xyz", "memory.md");
+      assert.ok(fs.existsSync(guideFile), "format guide file should exist on disk");
+    });
+
+    it("does not overwrite existing guide on second call", () => {
+      const result = brain.getFormatGuide("unknown-kind-xyz");
+      assert.ok(result.text.includes("Why:"));
+      assert.strictEqual(result.newGuideCreated, null, "should not report new guide on second call");
     });
   });
 
@@ -248,8 +259,8 @@ describe("Brain core", () => {
   describe("semantic search", () => {
     it("finds memories by meaning not just keywords", async () => {
       // "narrow cards" should find the compact layout memory even though
-      // the exact phrase doesn't appear
-      const r = await brain.semanticSearch({ query: "narrow cards", limit: 5 });
+      // the exact phrase doesn't appear — unified search handles both keyword and semantic
+      const r = await brain.search({ query: "narrow cards", limit: 5 });
       const titles = r.memories.map(m => m.title);
       const found = titles.some(t => t.includes("MemoryCard") || t.includes("compact"));
       assert.ok(found, `Should find compact layout memory via semantic search. Got: ${titles.join(", ")}`);

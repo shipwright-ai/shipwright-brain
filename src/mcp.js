@@ -121,8 +121,13 @@ Do NOT pass content — the response tells you the file path and format to write
       text += `\n\nIf any of these should be the parent, delete this memory and recreate with parent param.`;
     }
 
+    const formatResult = brain.getFormatGuide(effectiveKind);
     text += `\n\n⚠ NEXT STEPS — do these now before moving on:`;
-    text += `\n- [ ] Write content to ${memFile} in this format:\n\n${brain.getFormatGuide(effectiveKind)}`;
+    text += `\n- [ ] Write content to ${memFile} in this format:\n\n${formatResult.text}`;
+    if (formatResult.newGuideCreated) {
+      text += `\n\nNew format guide created: ${formatResult.newGuideCreated}`;
+      text += `\nCustomize it to define the preferred structure for "${effectiveKind}" memories.`;
+    }
     text += `\n\n- [ ] Attach ALL relevant files from this conversation using brain.attach_to_memory (memory_file: "${memFile}") — any file type: images, screenshots, STL, PDF, CSV, code, configs, designs, logs, etc.`;
     text += `\n- [ ] Skip attachments if no assets exist — but check first, don't assume`;
     text += `\n\nIMPORTANT: If you learn new information relevant to this memory during the session, update the file immediately. Memories are living documents.`;
@@ -179,8 +184,9 @@ When the developer asks "what's next?" — use search_memories with status "in-p
 
 server.tool(
   "search_memories",
-  `Search memories. Multiple queries supported — matches if ANY query hits (OR logic).
-Searches title, summary, tags, kind, slug from cache. Returns max 20 results per call.
+  `Search memories by keyword, meaning, or both. Combines keyword matching with semantic (embedding-based) search.
+Returns results ranked by relevance score. Works for exact keywords AND conceptual/natural language queries.
+Without a query, returns all memories matching the filters (sorted by date).
 Use offset to paginate. To read full content, open the memory_file directly.
 Status filter: use the status parameter (not-started, in-progress, done) — status is NOT a tag.
 Status is auto-detected from checkboxes: 0/N = not-started, some = in-progress, all = done.
@@ -190,52 +196,22 @@ When the developer asks "what should I do next?" or similar:
   2. Then status "not-started" — pick up new work
   3. Present both lists so the developer can choose`,
   {
-    queries: z.array(z.string()).describe('Search queries, e.g. ["auth", "JWT", "login"]'),
+    query: z.string().optional().describe('Search query — keywords or natural language, e.g. "auth" or "how do we handle authentication"'),
     tags: z.array(z.string()).optional().describe("Filter by tags (any match)"),
     kind: z.string().optional().describe("Filter by kind"),
     status: z.enum(["not-started", "in-progress", "done"]).optional().describe("Filter by checkbox status"),
-    sort: z.enum(["recent", "oldest"]).optional().describe("Sort by modified date: recent (default) or oldest first"),
+    sort: z.enum(["recent", "oldest"]).optional().describe("Sort by modified date: recent (default) or oldest first. Ignored when query is provided (sorted by relevance)."),
     limit: z.number().optional().describe("Max results (default 20)"),
     offset: z.number().optional().describe("Skip N results for pagination (default 0)"),
   },
-  async ({ queries, tags, kind, status, sort, limit, offset }) => {
+  async ({ query, tags, kind, status, sort, limit, offset }) => {
     const coreSort = sort === "oldest" ? "modified:asc" : "modified:desc";
-    const r = brain.search({ queries, tags, kind, status, sort: coreSort, limit: limit || 20, offset: offset || 0 });
+    const r = await brain.search({ query, tags, kind, status, sort: coreSort, limit: limit || 20, offset: offset || 0 });
     if (!r.memories.length) return { content: [{ type: "text", text: "No memories found." }] };
 
     let text = r.memories.map((m) => {
       let line = `${m.memory_file} — ${m.title}`;
-      if (m.progress) line += ` [${m.progress.checked}/${m.progress.total}]`;
-      if (m.summary) line += `\n  ${m.summary}`;
-      return line;
-    }).join("\n\n");
-
-    text = `${r.total} total, showing ${r.memories.length}:\n\n${text}`;
-    if (r.hasMore) text += `\n\n... more results available (offset: ${(offset || 0) + r.memories.length})`;
-    return { content: [{ type: "text", text }, { type: "text", text: CLAUDE_REMINDER }] };
-  }
-);
-
-server.tool(
-  "semantic_search",
-  `Semantic search — find memories by meaning, not just keywords.
-Uses embeddings to find conceptually related memories even when exact words don't match.
-Results are ranked by similarity score (0-1). Combines semantic + keyword matching.
-Use this when keyword search returns too few results or the query is conceptual.`,
-  {
-    query: z.string().describe('Natural language query, e.g. "how do we handle authentication"'),
-    tags: z.array(z.string()).optional().describe("Filter by tags (any match)"),
-    kind: z.string().optional().describe("Filter by kind"),
-    status: z.enum(["not-started", "in-progress", "done"]).optional().describe("Filter by status"),
-    limit: z.number().optional().describe("Max results (default 20)"),
-    offset: z.number().optional().describe("Skip N results (default 0)"),
-  },
-  async ({ query, tags, kind, status, limit, offset }) => {
-    const r = await brain.semanticSearch({ query, tags, kind, status, limit: limit || 20, offset: offset || 0 });
-    if (!r.memories.length) return { content: [{ type: "text", text: "No memories found." }] };
-
-    let text = r.memories.map((m) => {
-      let line = `${m.memory_file} — ${m.title} (${Math.round(m.score * 100)}%)`;
+      if (m.score !== undefined) line += ` (${Math.round(m.score * 100)}%)`;
       if (m.progress) line += ` [${m.progress.checked}/${m.progress.total}]`;
       if (m.summary) line += `\n  ${m.summary}`;
       return line;
@@ -300,15 +276,6 @@ Images get ![name](file), other files get [name](file).`,
   }
 );
 
-server.tool(
-  "get_memory_graph",
-  `Get the full reference graph. Nodes have memory_file, title, summary. Edges show refs between memories.`,
-  {},
-  async () => {
-    const g = brain.getGraph();
-    return { content: [{ type: "text", text: JSON.stringify(g, null, 2) }] };
-  }
-);
 
 server.tool(
   "recall_agent_memory",
