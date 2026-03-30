@@ -581,10 +581,11 @@ export async function findSimilar(title, summary, { limit = 3 } = {}) {
   return { duplicates: duplicates.slice(0, limit), related: related.slice(0, limit) };
 }
 
-export async function screenshot(url, { name, memoryFile, clicks } = {}) {
+export async function screenshot(url, { name, memoryFile, clicks, width } = {}) {
   const { chromium } = await import("playwright");
   const browser = await chromium.launch();
-  const page = await browser.newPage();
+  const viewport = width ? { width, height: 800 } : undefined;
+  const page = await browser.newPage({ ...(viewport && { viewport }) });
   await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
   if (clicks && clicks.length) {
     for (const selector of clicks) {

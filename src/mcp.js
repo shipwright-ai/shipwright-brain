@@ -230,28 +230,31 @@ server.tool(
 Without memory_file: saves to temp, returns file path.
 With memory_file: saves next to that memory and appends image reference to the markdown.
 
+Width: set viewport width to capture mobile/tablet layouts. Common widths:
+  375 = iPhone, 768 = iPad, 1024 = tablet landscape, 1280 = desktop (default).
+
 Clicks: interact with the page before capturing. Pass an array of CSS selectors —
 they are clicked in order with a short pause between each. The screenshot is taken
 after all clicks complete. This lets you capture specific UI states:
 
+Example — mobile screenshot:
+  url: "http://localhost:3000", width: 375
+
 Example — screenshot of an open settings dropdown:
   url: "http://localhost:3000"
   clicks: [".user-avatar", ".dropdown-item-settings"]
-
-Example — screenshot of a modal after clicking a button:
-  url: "http://localhost:3000/dashboard"
-  clicks: ["button.new-project"]
 
 Each selector must be visible and clickable on the page at that point in the sequence.`,
   {
     url: z.string().describe("URL to screenshot"),
     name: z.string().optional().describe("Filename without .png"),
     memory_file: z.string().optional().describe("Attach to this memory. Omit for temp file."),
+    width: z.number().optional().describe("Viewport width in px. 375 = mobile, 768 = tablet, 1280 = desktop (default)"),
     clicks: z.array(z.string()).optional().describe('CSS selectors to click in order before capturing. E.g. [".avatar", ".settings-menu"] to open avatar dropdown then click settings.'),
   },
-  async ({ url, name, memory_file, clicks }) => {
+  async ({ url, name, memory_file, clicks, width }) => {
     try {
-      const filePath = await brain.screenshot(url, { name, memoryFile: memory_file, clicks });
+      const filePath = await brain.screenshot(url, { name, memoryFile: memory_file, clicks, width });
       if (filePath === null) return { content: [{ type: "text", text: `Memory not found: ${memory_file}` }] };
       return { content: [{ type: "text", text: filePath }] };
     } catch (e) {
