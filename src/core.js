@@ -688,6 +688,129 @@ export function getGraph() {
   return { nodes, edges };
 }
 
+export function move(memFile, newParent) {
+  const entry = cache.get(memFile);
+  if (!entry) return null;
+
+  let targetParentDir;
+  let newParentCreated = null;
+  let targetKind;
+
+  if (newParent) {
+    const parentEntry = cache.get(newParent);
+    if (parentEntry) {
+      // Existing memory — nest under it
+      targetParentDir = path.dirname(abs(newParent));
+      targetKind = parentEntry.kind;
+    } else {
+      // Treat as a kind/path — create new folder with memory.md
+      const parts = newParent.split("/").map(p => slugify(p)).filter(Boolean);
+      targetKind = parts[0];
+      targetParentDir = path.join(DOCS_DIR, ...parts);
+      fs.mkdirSync(targetParentDir, { recursive: true });
+      const newParentFile = path.join(targetParentDir, "memory.md");
+      if (!fs.existsSync(newParentFile)) {
+        const kind = parts[0];
+        const fm = {
+          title: parts[parts.length - 1],
+          summary: "",
+          kind,
+          tags: [],
+          refs: [],
+          by: "system",
+          at: new Date().toISOString(),
+        };
+        fs.writeFileSync(newParentFile, matter.stringify("", fm), "utf-8");
+        loadEntry(targetParentDir);
+        newParentCreated = rel(newParentFile);
+      }
+    }
+  } else {
+    // Move to top-level of same kind
+    targetKind = entry.kind;
+    targetParentDir = path.join(DOCS_DIR, entry.kind);
+  }
+
+  // Guard: cannot move across kinds
+  if (targetKind && targetKind !== entry.kind) {
+    return { error: `Cannot move across kinds: "${entry.kind}" → "${targetKind}". Memories must stay within their kind.` };
+  }
+
+  const oldAbsDir = path.dirname(abs(memFile));
+  const dirName = path.basename(oldAbsDir);
+  let newAbsDir = path.join(targetParentDir, dirName);
+  let c = 2;
+  while (fs.existsSync(newAbsDir)) { newAbsDir = path.join(targetParentDir, `${dirName}-${c++}`); }
+
+  // Collect all memory_file paths under this directory (self + descendants)
+  const oldPaths = new Map(); // old path → will be filled with new path
+  function collectPaths(dir) {
+    const mf = path.join(dir, "memory.md");
+    if (fs.existsSync(mf)) oldPaths.set(rel(mf), null);
+    for (const f of fs.readdirSync(dir)) {
+      const full = path.join(dir, f);
+      if (fs.statSync(full).isDirectory()) collectPaths(full);
+    }
+  }
+  collectPaths(oldAbsDir);
+
+  // Move the directory
+  fs.renameSync(oldAbsDir, newAbsDir);
+
+  // Build old→new path mapping
+  for (const oldPath of oldPaths.keys()) {
+    const relative = path.relative(oldAbsDir, path.resolve(PROJECT_ROOT, oldPath));
+    const newPath = rel(path.join(newAbsDir, relative));
+    oldPaths.set(oldPath, newPath);
+  }
+
+  // Update refs across ALL memories in cache
+  for (const e of cache.values()) {
+    let changed = false;
+    const af = abs(e.memory_file);
+    if (!fs.existsSync(af)) continue;
+    const { data: fm, content } = matter(fs.readFileSync(af, "utf-8"));
+    const newRefs = (fm.refs || []).map(r => {
+      const mapped = oldPaths.get(r);
+      if (mapped) { changed = true; return mapped; }
+      return r;
+    });
+    if (changed) {
+      fm.refs = newRefs;
+      fs.writeFileSync(af, matter.stringify(content, fm), "utf-8");
+    }
+  }
+
+  // Remove old cache entries, reload new ones
+  for (const oldPath of oldPaths.keys()) {
+    cache.delete(oldPath);
+  }
+  // Reload moved entries
+  function reloadDir(dir) {
+    if (fs.existsSync(path.join(dir, "memory.md"))) loadEntry(dir);
+    for (const f of fs.readdirSync(dir)) {
+      const full = path.join(dir, f);
+      if (fs.statSync(full).isDirectory()) reloadDir(full);
+    }
+  }
+  reloadDir(newAbsDir);
+
+  // Reload old parent and new parent
+  const oldParentDir = path.dirname(oldAbsDir);
+  if (fs.existsSync(path.join(oldParentDir, "memory.md"))) loadEntry(oldParentDir);
+  if (fs.existsSync(path.join(targetParentDir, "memory.md"))) loadEntry(targetParentDir);
+
+  // Clean up empty old kind directory
+  const oldKindDir = path.join(DOCS_DIR, entry.kind);
+  if (fs.existsSync(oldKindDir) && fs.readdirSync(oldKindDir).length === 0) fs.rmdirSync(oldKindDir);
+
+  recomputeAllAggregates();
+  saveDiskCache();
+
+  const newMemFile = oldPaths.get(memFile);
+  return { memFile: newMemFile, newParentCreated };
+}
+
 export function remove(memFile) {
   const entry = cache.get(memFile);
   if (!entry || entry.children.length > 0) return false;
@@ -807,6 +930,17 @@ export function allTags() {
   const tc = {};
   for (const e of cache.values()) for (const t of e.tags) tc[t] = (tc[t] || 0) + 1;
   return tc;
+}
+
+export function allAgents() {
+  const ac = {};
+  for (const e of cache.values()) {
+    if (!e.sections) continue;
+    for (const s of e.sections) {
+      if (s.agent) ac[s.agent] = (ac[s.agent] || 0) + 1;
+    }
+  }
+  return ac;
 }
 
 export function getEntry(memFile) { return cache.get(memFile) || null; }

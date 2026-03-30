@@ -40,7 +40,12 @@ server.resource(
       const tags = brain.allTags();
       const tagEntries = Object.entries(tags).sort((a, b) => b[1] - a[1]);
       if (tagEntries.length) {
-        text += `Tags: ${tagEntries.map(([t, n]) => `${t} (${n})`).join(', ')}\n`;
+        text += `Tags: ${tagEntries.map(([t, n]) => `${t} (${n})`).join(', ')}\n\n`;
+      }
+      const agents = brain.allAgents();
+      const agentEntries = Object.entries(agents).sort((a, b) => b[1] - a[1]);
+      if (agentEntries.length) {
+        text += `Agents: ${agentEntries.map(([a, n]) => `${a} (${n} sections)`).join(', ')}\n`;
       }
     } else {
       // Phase 1 only — just kinds from folder names
@@ -273,6 +278,31 @@ Each selector must be visible and clickable on the page at that point in the seq
     } catch (e) {
       return { content: [{ type: "text", text: `Screenshot failed: ${e.message}` }] };
     }
+  }
+);
+
+server.tool(
+  "move_memory",
+  `Move a memory under a new parent. Updates all refs across the brain automatically.
+new_parent can be:
+  - An existing memory_file path — nests the memory under it
+  - A new path like "features/security" — creates folder + skeleton memory.md, then nests under it
+  - Omitted — moves to top-level of the same kind`,
+  {
+    memory_file: z.string().describe("The memory to move"),
+    new_parent: z.string().optional().describe('Target parent: existing memory_file or new path like "features/security"'),
+  },
+  async ({ memory_file, new_parent }) => {
+    const result = brain.move(memory_file, new_parent);
+    if (!result) return { content: [{ type: "text", text: `Memory not found: ${memory_file}` }] };
+    if (result.error) return { content: [{ type: "text", text: result.error }] };
+
+    let text = `Moved: ${memory_file} → ${result.memFile}`;
+    if (result.newParentCreated) {
+      text += `\n\nNew parent created: ${result.newParentCreated}`;
+      text += `\nThis memory needs content — write title, summary, and body.`;
+    }
+    return { content: [{ type: "text", text }] };
   }
 );
 

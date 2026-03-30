@@ -253,8 +253,9 @@ const server = http.createServer(async (req, res) => {
   if (pathname === "/api/overview") {
     const s = brain.stats();
     const tags = brain.allTags();
+    const agents = brain.allAgents();
     const kinds = brain.getKinds();
-    return json(res, { total: s.total, kinds: s.kinds, tags, kindsList: kinds, ready: brain.isReady() });
+    return json(res, { total: s.total, kinds: s.kinds, tags, agents, kindsList: kinds, ready: brain.isReady() });
   }
 
   // --- File serving ---
