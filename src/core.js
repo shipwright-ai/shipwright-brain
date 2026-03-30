@@ -17,9 +17,11 @@ export function init(docsDir, projectRoot) {
   DOCS_DIR = path.resolve(docsDir);
   PROJECT_ROOT = projectRoot || path.resolve(".");
 
-  // Cache file lives in brain's own dir, keyed by project path hash
+  // Cache file keyed by project path hash — prefer CLAUDE_PLUGIN_DATA if running as plugin
   const hash = crypto.createHash("md5").update(DOCS_DIR).digest("hex").slice(0, 12);
-  const cacheDir = path.join(__dirname, "..", ".cache");
+  const cacheDir = process.env.CLAUDE_PLUGIN_DATA
+    ? path.join(process.env.CLAUDE_PLUGIN_DATA, ".cache")
+    : path.join(__dirname, "..", ".cache");
   fs.mkdirSync(cacheDir, { recursive: true });
   CACHE_FILE = path.join(cacheDir, `${hash}.jsonl`);
 

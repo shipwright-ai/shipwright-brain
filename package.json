@@ -1,17 +1,38 @@
 {
   "name": "shipwright-brain",
   "version": "0.1.0",
-  "description": "Simple memory for AI agents — markdown files, MCP server, web UI",
+  "description": "Persistent memory for Claude Code — markdown files, no database. Remembers decisions, features, architecture, and progress across sessions.",
   "type": "module",
   "main": "src/core.js",
   "bin": {
     "shipwright-brain": "./bin.js"
   },
+  "files": [
+    "bin.js",
+    "src/",
+    ".claude-plugin/",
+    "CLAUDE.md",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "mcp": "node src/mcp.js",
     "ui": "node src/http.js",
     "start": "node bin.js start",
     "test": "node --test test/core.test.js"
+  },
+  "keywords": [
+    "claude-code",
+    "mcp",
+    "memory",
+    "knowledge-base",
+    "markdown",
+    "ai-agent"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shipwright-ai/shipwright-brain"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
