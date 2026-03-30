@@ -23,3 +23,5 @@ Write as a checklist — each task is a checkbox:
 - [ ] Verify / review
 
 Epics are work items with sub-memories — create the parent, then nest tasks under it using parent param.
+
+Use tag `work-item` when this is a child of a plan. Use tag `plan` when this is a plan under an idea. See ideas format guide for the full nesting pattern.

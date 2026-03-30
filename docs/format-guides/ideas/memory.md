@@ -24,4 +24,17 @@ Write as a checklist — each step is a checkbox:
 
 3-6 checkboxes. Don't over-plan. Check boxes off as work progresses.
 
-Epics are ideas with sub-memories — create the parent idea, then nest related ideas under it using parent param.
+## Nesting: ideas → plans → work-items
+
+Ideas can grow into structured work using tags and sub-memories:
+
+1. **Idea** (top-level) — the concept. Tags: area/category.
+2. **Plan** (sub-memory of idea) — how to execute. Tag: `plan`. Contains high-level phases.
+3. **Work-item** (sub-memory of plan) — individual task. Tag: `work-item`. Has checkboxes.
+
+Example:
+  idea: "Auth redesign" (kind: ideas)
+    └── plan: "Migration plan" (parent: the idea, tags: [plan])
+         └── work-item: "Migrate session tokens" (parent: the plan, tags: [work-item])
+
+Progress rolls up: work-item checkboxes → plan aggregate → idea aggregate.
