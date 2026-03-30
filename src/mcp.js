@@ -103,8 +103,9 @@ Do NOT pass content — the response tells you the file path and format to write
     const autoRefs = related.map(r => r.memory_file);
     const allRefs = [...new Set([...(refs || []), ...autoRefs])];
 
-    const memFile = brain.create({ title, summary, content: "", kind, parent, tags, refs: allRefs, by });
-    if (!memFile) return { content: [{ type: "text", text: "Failed — parent not found." }] };
+    const result = brain.create({ title, summary, content: "", kind, parent, tags, refs: allRefs, by });
+    if (!result) return { content: [{ type: "text", text: "Failed — parent not found." }] };
+    const { memFile, sections: copiedSections } = result;
 
     const effectiveKind = kind || (parent ? "sub-memory" : "memories");
     let text = `Created: ${memFile}`;
@@ -128,6 +129,16 @@ Do NOT pass content — the response tells you the file path and format to write
       text += `\n\nNew format guide created: ${formatResult.newGuideCreated}`;
       text += `\nCustomize it to define the preferred structure for "${effectiveKind}" memories.`;
     }
+    if (copiedSections.length > 0) {
+      text += `\n\nSections created (agent checklists):`;
+      for (const s of copiedSections) {
+        let line = `  ${s.path}`;
+        if (s.section) line += ` — ${s.section}`;
+        if (s.agent) line += ` (agent: ${s.agent})`;
+        text += `\n${line}`;
+      }
+      text += `\n- [ ] Fill in each section's checklist for the assigned agent`;
+    }
     text += `\n\n- [ ] Attach ALL relevant files from this conversation using brain.attach_to_memory (memory_file: "${memFile}") — any file type: images, screenshots, STL, PDF, CSV, code, configs, designs, logs, etc.`;
     text += `\n- [ ] Skip attachments if no assets exist — but check first, don't assume`;
     text += `\n\nIMPORTANT: If you learn new information relevant to this memory during the session, update the file immediately. Memories are living documents.`;
@@ -150,13 +161,14 @@ When the developer asks "what's next?" — use search_memories with status "in-p
     path: z.string().optional().describe('Kind string (e.g. "decisions") or memory_file. Omit for top-level.'),
     tags: z.array(z.string()).optional().describe("Filter by tags (any match)"),
     status: z.enum(["not-started", "in-progress", "done"]).optional().describe("Filter by checkbox status"),
+    agent: z.string().optional().describe("Filter by agent name — only show memories with sections assigned to this agent"),
     sort: z.enum(["recent", "oldest"]).optional().describe("Sort by modified date: recent (default) or oldest first"),
     limit: z.number().optional().describe("Max results (default 20)"),
     offset: z.number().optional().describe("Skip N results (default 0)"),
   },
-  async ({ path: p, tags, status, sort, limit, offset }) => {
+  async ({ path: p, tags, status, agent, sort, limit, offset }) => {
     const coreSort = sort === "oldest" ? "modified:asc" : "modified:desc";
-    const r = brain.browse(p, { limit: limit || 20, offset: offset || 0, tags, status, sort: coreSort });
+    const r = brain.browse(p, { limit: limit || 20, offset: offset || 0, tags, status, agent, sort: coreSort });
     if (!r) return { content: [{ type: "text", text: "Not found." }] };
 
     if (r.level === "root") {
@@ -200,13 +212,14 @@ When the developer asks "what should I do next?" or similar:
     tags: z.array(z.string()).optional().describe("Filter by tags (any match)"),
     kind: z.string().optional().describe("Filter by kind"),
     status: z.enum(["not-started", "in-progress", "done"]).optional().describe("Filter by checkbox status"),
+    agent: z.string().optional().describe("Filter by agent name — only show memories with sections assigned to this agent"),
     sort: z.enum(["recent", "oldest"]).optional().describe("Sort by modified date: recent (default) or oldest first. Ignored when query is provided (sorted by relevance)."),
     limit: z.number().optional().describe("Max results (default 20)"),
     offset: z.number().optional().describe("Skip N results for pagination (default 0)"),
   },
-  async ({ query, tags, kind, status, sort, limit, offset }) => {
+  async ({ query, tags, kind, status, agent, sort, limit, offset }) => {
     const coreSort = sort === "oldest" ? "modified:asc" : "modified:desc";
-    const r = await brain.search({ query, tags, kind, status, sort: coreSort, limit: limit || 20, offset: offset || 0 });
+    const r = await brain.search({ query, tags, kind, status, agent, sort: coreSort, limit: limit || 20, offset: offset || 0 });
     if (!r.memories.length) return { content: [{ type: "text", text: "No memories found." }] };
 
     let text = r.memories.map((m) => {

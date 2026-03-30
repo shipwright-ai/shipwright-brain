@@ -90,6 +90,31 @@ function parseCheckboxes(content) {
   return { checked, total, status: checked === total ? "done" : checked === 0 ? "not-started" : "in-progress" };
 }
 
+function parseSectionFilename(filename) {
+  const base = filename.replace(/\.md$/, "");
+  const match = base.match(/^(\d+)_([^_]+)(?:_(.+))?$/);
+  if (!match) return { order: null, section: base, agent: null };
+  return { order: parseInt(match[1]), section: match[2], agent: match[3] || null };
+}
+
+function loadSections(absDir) {
+  const files = fs.readdirSync(absDir).filter(f => f !== "memory.md" && f.endsWith(".md") && !fs.statSync(path.join(absDir, f)).isDirectory());
+  return files.map(f => {
+    const raw = fs.readFileSync(path.join(absDir, f), "utf-8");
+    const { data: fm, content } = matter(raw);
+    const parsed = parseSectionFilename(f);
+    const progress = parseCheckboxes(content);
+    return {
+      file: f,
+      path: rel(path.join(absDir, f)),
+      order: fm.order ?? parsed.order,
+      title: fm.title || parsed.section,
+      agent: fm.agent || parsed.agent,
+      progress,
+    };
+  }).sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+}
+
 function computeAggregateProgress(memFile, visited = new Set()) {
   if (visited.has(memFile)) return null;
   visited.add(memFile);
@@ -279,8 +304,9 @@ function loadEntry(absDir) {
     const oldEntry = cache.get(memFile);
     if (oldEntry) diffRefs(oldEntry.refs, allRefs, memFile);
 
+    const sections = loadSections(absDir);
     const attachments = fs.readdirSync(absDir)
-      .filter(f => f !== "memory.md" && !fs.statSync(path.join(absDir, f)).isDirectory())
+      .filter(f => f !== "memory.md" && !f.endsWith(".md") && !fs.statSync(path.join(absDir, f)).isDirectory())
       .map(f => {
         const s = fs.statSync(path.join(absDir, f));
         return { file: rel(path.join(absDir, f)), created: s.birthtime.toISOString(), modified: s.mtime.toISOString() };
@@ -291,14 +317,21 @@ function loadEntry(absDir) {
     const parentDir = path.dirname(absDir);
     const parent = fs.existsSync(path.join(parentDir, "memory.md")) ? rel(path.join(parentDir, "memory.md")) : null;
     const parts = path.relative(DOCS_DIR, absDir).split(path.sep);
-    const progress = parseCheckboxes(content);
+    // Merge checkboxes from memory.md + all sections
+    const memProgress = parseCheckboxes(content);
+    let totalChecked = memProgress ? memProgress.checked : 0;
+    let totalTotal = memProgress ? memProgress.total : 0;
+    for (const s of sections) {
+      if (s.progress) { totalChecked += s.progress.checked; totalTotal += s.progress.total; }
+    }
+    const progress = totalTotal > 0 ? { checked: totalChecked, total: totalTotal, status: totalChecked === totalTotal ? "done" : totalChecked === 0 ? "not-started" : "in-progress" } : null;
     const fileStat = fs.statSync(absFile);
     // Preserve embedding from old entry or disk cache if content unchanged
     const oldEmbedding = oldEntry ? oldEntry.embedding : null;
     const entry = {
       memory_file: memFile, title: fm.title || parts[parts.length - 1],
       summary: fm.summary || "", kind: parts[0], slug: parts[parts.length - 1],
-      depth: parts.length, parent, children, attachments, progress,
+      depth: parts.length, parent, children, attachments, sections, progress,
       tags: fm.tags || [], refs: allRefs, by: fm.by || "unknown",
       at: fm.at || "", modified: fileStat.mtime.toISOString(),
       embedding: oldEmbedding || null,
@@ -317,10 +350,13 @@ function loadEntry(absDir) {
 function startWatcher() {
   try {
     fs.watch(DOCS_DIR, { recursive: true }, (_, filename) => {
-      if (!filename || !filename.includes("memory.md")) return;
+      if (!filename || !filename.endsWith(".md")) return;
       const parts = filename.split(path.sep);
       if (parts.length < 2) return;
-      const absDir = path.join(DOCS_DIR, ...parts.slice(0, -1));
+      // For section files, reload the parent memory directory
+      const absDir = filename.endsWith("memory.md")
+        ? path.join(DOCS_DIR, ...parts.slice(0, -1))
+        : path.join(DOCS_DIR, ...parts.slice(0, -1));
       if (fs.existsSync(path.join(absDir, "memory.md"))) {
         const memFile = rel(path.join(absDir, "memory.md"));
         loadEntry(absDir);
@@ -410,6 +446,8 @@ export function create({ title, summary, content, kind, parent, tags, refs, by }
   const cleanTags = (tags || []).map(t => slugify(t)).filter(Boolean);
   const fm = { title, summary: summary || "", kind: actualKind, tags: cleanTags, refs: refs || [], by: by || "unknown", at: new Date().toISOString() };
   fs.writeFileSync(absFile, matter.stringify(content || "", fm), "utf-8");
+  // Copy section templates from format guide
+  const copiedSections = copySectionTemplates(actualKind, cleanTags, finalDir);
   loadEntry(finalDir);
   syncRefs(memFile, refs);
   if (parent) { const pd = path.dirname(abs(parent)); if (fs.existsSync(path.join(pd, "memory.md"))) loadEntry(pd); }
@@ -418,7 +456,7 @@ export function create({ title, summary, content, kind, parent, tags, refs, by }
   const cleaned = cleanupAbandonedDuplicate(slug, memFile);
 
   saveDiskCache();
-  return memFile;
+  return { memFile, sections: copiedSections };
 }
 
 function computeFacets(items) {
@@ -435,6 +473,12 @@ function computeFacets(items) {
     tags: Object.entries(tagCounts).map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count),
     status: statusCounts,
   };
+}
+
+function matchesAgent(entry, agent) {
+  if (!agent) return true;
+  if (!entry.sections || !entry.sections.length) return false;
+  return entry.sections.some(s => s.agent === agent);
 }
 
 function matchesStatus(entry, status) {
@@ -454,7 +498,7 @@ function sortItems(items, sort) {
   return items.sort((a, b) => asc * String(a.modified || a.at || "").localeCompare(String(b.modified || b.at || "")));
 }
 
-export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags, status, sort } = {}) {
+export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags, status, agent, sort } = {}) {
   if (!pathOrKind) {
     if (!cacheReady) return { level: "root", kinds: [...knownKinds].sort().map(k => ({ kind: k })) };
     const directCounts = {};
@@ -484,6 +528,7 @@ export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags, s
     let items = entry.children.map(cf => { const c = cache.get(cf); return c ? { memory_file: c.memory_file, title: c.title, summary: c.summary, tags: c.tags, progress: c.progress, aggregateProgress: c.aggregateProgress, children: c.children.length, at: c.at, modified: c.modified } : null; }).filter(Boolean);
     if (filterTags && filterTags.length) items = items.filter(m => filterTags.some(t => m.tags.includes(t)));
     if (status) items = items.filter(m => matchesStatus(m, status));
+    if (agent) items = items.filter(m => { const e = cache.get(m.memory_file); return e && matchesAgent(e, agent); });
     sortItems(items, sort);
     const total = items.length;
     const result = { level: "memory", memory_file: pathOrKind, title: entry.title, children: items.slice(offset, offset + limit), total, limit, offset, hasMore: offset + limit < total };
@@ -504,7 +549,7 @@ export function browse(pathOrKind, { limit = 20, offset = 0, tags: filterTags, s
   return result;
 }
 
-export async function search({ query, tags, kind, status, sort, limit = 20, offset = 0 }) {
+export async function search({ query, tags, kind, status, agent, sort, limit = 20, offset = 0 }) {
   const hasQuery = query && query.trim().length > 0;
   const queryLower = hasQuery ? query.toLowerCase() : "";
   const scored = new Map();
@@ -514,6 +559,7 @@ export async function search({ query, tags, kind, status, sort, limit = 20, offs
     if (kind && e.kind !== kind) continue;
     if (tags && tags.length && !tags.some(t => e.tags.includes(t))) continue;
     if (!matchesStatus(e, status)) continue;
+    if (!matchesAgent(e, agent)) continue;
     if (hasQuery) {
       const hay = `${e.title} ${e.summary} ${e.tags.join(" ")} ${e.kind} ${e.slug}`.toLowerCase();
       if (!hay.includes(queryLower)) continue;
@@ -530,6 +576,7 @@ export async function search({ query, tags, kind, status, sort, limit = 20, offs
         if (kind && e.kind !== kind) continue;
         if (tags && tags.length && !tags.some(t => e.tags.includes(t))) continue;
         if (!matchesStatus(e, status)) continue;
+        if (!matchesAgent(e, agent)) continue;
         const sim = e.embedding ? cosineSimilarity(queryEmbedding, e.embedding) : 0;
         if (sim <= 0.1) continue;
         const existing = scored.get(e.memory_file);
@@ -715,6 +762,34 @@ export function getFormatGuide(kind, tags) {
     }
   }
   return { text: guide + "\n" + CONTEXT_5W, newGuideCreated };
+}
+
+function findFormatGuideDir(kind, tags) {
+  if (!kind) return null;
+  const k = slugify(kind);
+  const guideDir = path.join(DOCS_DIR, "format-guides", k);
+  // Check sub-format-guide by tag first
+  if (tags && tags.length) {
+    for (const tag of tags) {
+      const t = slugify(tag);
+      const subDir = path.join(guideDir, t);
+      if (fs.existsSync(path.join(subDir, "memory.md"))) return subDir;
+    }
+  }
+  if (fs.existsSync(path.join(guideDir, "memory.md"))) return guideDir;
+  return null;
+}
+
+function copySectionTemplates(kind, tags, targetDir) {
+  const guideDir = findFormatGuideDir(kind, tags);
+  if (!guideDir) return [];
+  const sectionFiles = fs.readdirSync(guideDir).filter(f => f !== "memory.md" && f.endsWith(".md") && !fs.statSync(path.join(guideDir, f)).isDirectory());
+  return sectionFiles.map(f => {
+    const src = path.join(guideDir, f);
+    const dest = path.join(targetDir, f);
+    fs.copyFileSync(src, dest);
+    return { file: f, path: rel(dest), ...parseSectionFilename(f) };
+  });
 }
 
 export function getKinds() {

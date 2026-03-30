@@ -32,7 +32,7 @@ describe("Brain core", () => {
 
   describe("create and retrieve", () => {
     it("creates a memory and returns memFile", () => {
-      const mf = brain.create({ title: "Test idea", summary: "A test", content: "- [ ] step one\n- [ ] step two", kind: "ideas", by: "test" });
+      const { memFile: mf } = brain.create({ title: "Test idea", summary: "A test", content: "- [ ] step one\n- [ ] step two", kind: "ideas", by: "test" });
       assert.ok(mf);
       assert.ok(mf.endsWith("memory.md"));
     });
@@ -131,8 +131,8 @@ describe("Brain core", () => {
 
   describe("refs", () => {
     it("creates bidirectional refs", () => {
-      const mf1 = brain.create({ title: "Ref source", summary: "Links to target", content: "", kind: "ideas", by: "test" });
-      const mf2 = brain.create({ title: "Ref target", summary: "Linked from source", content: "", kind: "ideas", refs: [mf1], by: "test" });
+      const { memFile: mf1 } = brain.create({ title: "Ref source", summary: "Links to target", content: "", kind: "ideas", by: "test" });
+      const { memFile: mf2 } = brain.create({ title: "Ref target", summary: "Linked from source", content: "", kind: "ideas", refs: [mf1], by: "test" });
 
       // Wait for sync
       return new Promise(r => setTimeout(() => {
@@ -147,7 +147,7 @@ describe("Brain core", () => {
 
   describe("sub-memories and aggregate progress", () => {
     it("creates parent with children and aggregates progress", () => {
-      const parent = brain.create({ title: "Epic task", summary: "Parent", content: "- [ ] overview", kind: "work", by: "test" });
+      const { memFile: parent } = brain.create({ title: "Epic task", summary: "Parent", content: "- [ ] overview", kind: "work", by: "test" });
       brain.create({ title: "Sub task 1", summary: "Child 1", content: "- [x] done thing", parent, by: "test" });
       brain.create({ title: "Sub task 2", summary: "Child 2", content: "- [ ] pending thing", parent, by: "test" });
 
@@ -166,7 +166,7 @@ describe("Brain core", () => {
 
   describe("delete", () => {
     it("deletes a memory and cleans up", () => {
-      const mf = brain.create({ title: "To delete", summary: "Will be removed", content: "", kind: "ideas", by: "test" });
+      const { memFile: mf } = brain.create({ title: "To delete", summary: "Will be removed", content: "", kind: "ideas", by: "test" });
       const before = brain.stats().total;
       const ok = brain.remove(mf);
       assert.ok(ok);
