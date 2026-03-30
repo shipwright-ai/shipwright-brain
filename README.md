@@ -1,25 +1,25 @@
 # Shipwright Brain
 
-Persistent memory for Claude Code. Markdown files, no database. Brain remembers ideas, decisions, bugs, and progress across sessions so Claude doesn't start from zero every time.
+Persistent memory for Claude Code. Markdown files, no database. Brain remembers ideas, decisions, features, and progress across sessions so Claude doesn't start from zero every time.
 
-## Setup (2 minutes)
+Part of the [Shipwright](https://github.com/shipwright-ai/shipwright) a la carte toolkit.
+
+## Install
+
+### Via Shipwright (recommended)
+
+If you're using [Shipwright](https://github.com/shipwright-ai/shipwright), Brain is set up during Layer 2 of `/shipwright:setup`. Nothing manual needed.
+
+### Standalone
 
 ```bash
 cd your-project
-npx shipwright-brain init
+npx github:shipwright-ai/shipwright-brain init
 ```
 
-Done. Brain creates a `docs/` folder and wires itself into Claude Code via `.mcp.json`. Next session, Claude has memory.
+Brain creates a `docs/` folder and wires itself into Claude Code via `.mcp.json`. Next session, Claude has memory.
 
-### Browse your memories
-
-```bash
-npx shipwright-brain ui
-```
-
-Opens http://localhost:3111 -- see all memories, filter by tags and status, track progress.
-
-### Manual setup (if you prefer)
+### Manual setup
 
 Add to `.mcp.json` in your project root:
 
@@ -28,11 +28,85 @@ Add to `.mcp.json` in your project root:
   "mcpServers": {
     "brain": {
       "command": "npx",
-      "args": ["shipwright-brain", "mcp", "--dir", "./docs"]
+      "args": ["github:shipwright-ai/shipwright-brain", "mcp", "--dir", "./docs"]
     }
   }
 }
 ```
+
+## Browse Your Memories
+
+Use [Shipwright UI](https://github.com/shipwright-ai/shipwright-ui) to see what Claude sees:
+
+```bash
+npx github:shipwright-ai/shipwright-ui
+```
+
+Opens http://localhost:3111 — browse memories, filter by tags and status, track progress.
+
+Or add a Makefile target (Shipwright setup does this automatically):
+
+```makefile
+brain-ui:
+	npx github:shipwright-ai/shipwright-ui
+```
+
+## What Makes Brain Different
+
+### Dynamic kinds and tags
+
+No predefined taxonomy. Create any kind — ideas, decisions, features, bugs, epics, sessions — whatever fits your project. Tags are freeform: `area/auth`, `priority/high`, `persona/admin`. Organize however makes sense.
+
+### Format guides per kind
+
+Each kind has its own template in `docs/format-guides/{kind}/memory.md`. Brain uses it when creating memories — Claude gets the right structure automatically.
+
+**Tag-aware sub-templates:** `brain.create_memory({ kind: "ideas", tags: ["plan"] })` looks for `docs/format-guides/ideas/plan/memory.md` first. Different tags get different formats from the same kind.
+
+### Sections — sibling .md files
+
+Any `.md` file next to `memory.md` is a section. Brain parses them (frontmatter, checkboxes, progress).
+
+Naming convention: `{order}_{section}_{agent}.md`
+
+```
+docs/ideas/auth-redesign/plan/task-1/
+  memory.md                        <- the work-item
+  1_execution_developer.md         <- developer checklist
+  2_review_reviewer.md             <- reviewer checklist
+  3_documentary_documenter.md      <- doc-writer checklist
+```
+
+Format guides can include section templates — they get copied automatically on `create_memory`.
+
+### Progress from checkboxes
+
+No status field. Brain counts `- [ ]` and `- [x]` and derives: not-started / in-progress / done. Section checkboxes aggregate into memory progress. Child memories roll up into parent progress.
+
+### MCP responses steer Claude
+
+This is the enforcement mechanism. Every Brain tool response includes:
+- **NEXT STEPS** — checklist of what Claude must do after creating a memory
+- **CLAUDE_REMINDER** — appended to every search/browse result ("update memories if scope changed")
+- **Duplicate blocking** — 90%+ similar memory blocks creation, presents two forced choices
+- **Related memories** — auto-linked as refs, suggested as parents
+
+Claude follows these because they arrive fresh with every tool call — unlike CLAUDE.md rules that get compacted away.
+
+### Agent recall
+
+Agents remember across sessions:
+- `brain.recall_agent_memory({ agent_name: "developer" })` — returns learnings, auto-creates file if first time
+- `brain.recall_developer_profile({})` — returns communication preferences, auto-detects user
+
+### Screenshots
+
+Capture UI state at any breakpoint:
+```
+brain.screenshot({ url: "http://localhost:5173/profiles", memory_file: "docs/features/profiles/memory.md", width: 375 })
+```
+
+Width: 375 (mobile), 768 (tablet), omit for desktop (1280). Full page capture. Click sequences supported.
 
 ## How It Works
 
@@ -42,13 +116,21 @@ Claude creates memories as markdown files with frontmatter. Brain handles everyt
 docs/
   ideas/
     auth-improvements/
-      memory.md          <- the idea + checklist
-      oauth/
-        memory.md        <- sub-idea (nested)
+      memory.md              <- the idea + checklist
+      auth-plan/
+        memory.md            <- plan (sub-memory)
+        migrate-tokens/
+          memory.md          <- work-item (sub-memory of plan)
+          1_execution_developer.md  <- section
   decisions/
     jwt-tokens/
       memory.md
-      whiteboard.png     <- attached files live next to the memory
+      whiteboard.png         <- attached files live next to the memory
+  features/
+    auth/
+      memory.md              <- living feature doc
+      login/
+        memory.md            <- sub-feature
 ```
 
 A memory looks like this:
@@ -74,68 +156,24 @@ at: 2025-03-28T10:00:00.000Z
 - [ ] Update API docs
 ```
 
-Brain reads the checkboxes and knows this is 2/4 = in progress. No status fields to maintain.
-
-## What Brain Does for Claude
-
-### Guides the workflow
-
-When Claude creates a memory, Brain returns:
-- The file path and format guide for that kind of memory
-- A checklist: write content, attach files, keep it updated
-- Similar existing memories (so Claude doesn't create duplicates)
-- Related memories auto-linked as refs
-
-Claude follows the instructions. Brain teaches the format.
-
-### Prevents duplicates
-
-Before creating, Brain checks for similar existing memories using embeddings:
-- **90%+ similar** -- blocks creation, suggests merging
-- **60-89% similar** -- creates it, auto-links as related, suggests as potential parent
-- Claude decides the relationship
-
-### Tracks progress
-
-Checkboxes in content are the progress system:
-- `- [ ]` unchecked, `- [x]` checked
-- Brain derives status: not-started / in-progress / done
-- Sub-memories roll up into parent progress
-- "What should I do next?" finds in-progress then not-started work
-
-### Searches by meaning
-
-Hybrid search: keyword matching + semantic embeddings. "How do we handle authentication?" finds memories about tokens, sessions, and login even without the word "auth". Local model (all-MiniLM-L6-v2), no API calls, CoreML on Mac.
-
-### Keeps the graph consistent
-
-Refs are always bidirectional. Link A to B and B automatically links back to A. Write a markdown link to another memory in content -- Brain detects it and adds the ref. Delete a memory -- back-refs clean up.
-
-### Remembers across restarts
-
-JSONL disk cache for instant startup. Cache restores synchronously (MCP ready immediately), verification runs in background. Embeddings computed once and cached.
-
-## Format Guides
-
-Stored as memories in `docs/format-guides/{kind}/memory.md`. They tell Claude how to write each kind of memory. Auto-created for new kinds.
-
-Edit them to change how your team writes memories -- no code changes needed. Brain appends the 5W context framework (Why, What, Who, How) to every format.
+Brain reads the checkboxes and knows this is 2/4 = in progress.
 
 ## MCP Tools
 
 | Tool | What it does |
 |------|-------------|
-| `create_memory` | Create memory with duplicate check, auto-refs, format guide |
+| `create_memory` | Create memory with duplicate check, auto-refs, format guide, section templates |
 | `browse_memories` | Navigate tree by kind, filter by tags/status, sort, paginate |
 | `search_memories` | Hybrid keyword + semantic search with filters |
-| `screenshot` | Capture URL with optional click sequence before capture |
+| `screenshot` | Capture URL at any viewport width with optional click sequence |
 | `attach_to_memory` | Attach any file type to a memory |
+| `move_memory` | Move memory to new parent, auto-update all refs |
 | `get_memory_graph` | Full connection graph |
 | `recall_agent_memory` | Load agent learnings from previous sessions |
 | `recall_developer_profile` | Load developer preferences |
 | `delete_memory` | Remove + cleanup refs |
 
-## API
+## HTTP API
 
 All endpoints return JSON with CORS headers.
 
@@ -148,6 +186,11 @@ All endpoints return JSON with CORS headers.
 | `GET /api/overview` | -- | Stats, kinds, tags |
 | `GET /file` | `p` (file path) | Serve attachments |
 
-First page includes facets (tag counts + status breakdown) and pagination metadata.
+## Related Projects
 
-Sort: `?sort=modified:desc` (default), `modified:asc`, `title:asc`, `title:desc`, `created:asc`, `created:desc`.
+- [Shipwright](https://github.com/shipwright-ai/shipwright) — a la carte toolkit for Claude Code (methodology + orchestration)
+- [Shipwright UI](https://github.com/shipwright-ai/shipwright-ui) — web UI for browsing Brain memories
+
+## License
+
+MIT
