@@ -121,7 +121,7 @@ Do NOT pass content — the response tells you the file path and format to write
       text += `\n\nIf any of these should be the parent, delete this memory and recreate with parent param.`;
     }
 
-    const formatResult = brain.getFormatGuide(effectiveKind);
+    const formatResult = brain.getFormatGuide(effectiveKind, tags);
     text += `\n\n⚠ NEXT STEPS — do these now before moving on:`;
     text += `\n- [ ] Write content to ${memFile} in this format:\n\n${formatResult.text}`;
     if (formatResult.newGuideCreated) {

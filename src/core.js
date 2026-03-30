@@ -672,30 +672,46 @@ Always structure context using this framework:
 > Who: who needs it, who is affected, who is doing it
 > How: approach, constraints, or dependencies`;
 
-export function getFormatGuide(kind) {
+export function getFormatGuide(kind, tags) {
   let guide = DEFAULT_FORMAT;
   let newGuideCreated = null;
   if (kind) {
     const k = slugify(kind);
     const guideDir = path.join(DOCS_DIR, "format-guides", k);
     const guideFile = path.join(guideDir, "memory.md");
-    if (fs.existsSync(guideFile)) {
-      const content = matter(fs.readFileSync(guideFile, "utf-8")).content.trim();
-      if (content) guide = content;
-    } else {
-      fs.mkdirSync(guideDir, { recursive: true });
-      const fm = {
-        title: `${k} format guide`,
-        summary: `Auto-generated format template for ${k} memories — customize this file`,
-        kind: "format-guides",
-        tags: ["format-guide"],
-        refs: [],
-        by: "system",
-        at: new Date().toISOString(),
-      };
-      fs.writeFileSync(guideFile, matter.stringify(DEFAULT_FORMAT, fm), "utf-8");
-      loadEntry(guideDir);
-      newGuideCreated = rel(guideFile);
+
+    // Check sub-format-guides by tag (first match wins)
+    let subGuideFound = false;
+    if (tags && tags.length) {
+      for (const tag of tags) {
+        const t = slugify(tag);
+        const subGuideFile = path.join(guideDir, t, "memory.md");
+        if (fs.existsSync(subGuideFile)) {
+          const content = matter(fs.readFileSync(subGuideFile, "utf-8")).content.trim();
+          if (content) { guide = content; subGuideFound = true; break; }
+        }
+      }
+    }
+
+    if (!subGuideFound) {
+      if (fs.existsSync(guideFile)) {
+        const content = matter(fs.readFileSync(guideFile, "utf-8")).content.trim();
+        if (content) guide = content;
+      } else {
+        fs.mkdirSync(guideDir, { recursive: true });
+        const fm = {
+          title: `${k} format guide`,
+          summary: `Auto-generated format template for ${k} memories — customize this file`,
+          kind: "format-guides",
+          tags: ["format-guide"],
+          refs: [],
+          by: "system",
+          at: new Date().toISOString(),
+        };
+        fs.writeFileSync(guideFile, matter.stringify(DEFAULT_FORMAT, fm), "utf-8");
+        loadEntry(guideDir);
+        newGuideCreated = rel(guideFile);
+      }
     }
   }
   return { text: guide + "\n" + CONTEXT_5W, newGuideCreated };
