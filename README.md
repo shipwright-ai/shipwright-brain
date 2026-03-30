@@ -1,47 +1,64 @@
 # Shipwright Brain
 
-Simple memory for AI agents. Markdown files with frontmatter. No database.
+Persistent memory for Claude Code. Markdown files, no database. Brain remembers ideas, decisions, bugs, and progress across sessions so Claude doesn't start from zero every time.
 
-## What It Is
+## Setup (2 minutes)
 
-An MCP server that stores memories as folders with `memory.md` and optional attachments.
-Kind determines the folder: `docs/decisions/`, `docs/personas/`, `docs/ideas/`, etc.
-Memories link to each other with bidirectional refs. The graph builds itself.
-
-Three files, one core:
-
-```
-src/core.js   <- brain logic (pure functions)
-src/mcp.js    <- MCP layer for Claude Code (imports core)
-src/http.js   <- HTTP + UI layer for humans (imports core)
+```bash
+cd your-project
+npx shipwright-brain init
 ```
 
-## Structure
+Done. Brain creates a `docs/` folder and wires itself into Claude Code via `.mcp.json`. Next session, Claude has memory.
+
+### Browse your memories
+
+```bash
+npx shipwright-brain ui
+```
+
+Opens http://localhost:3111 -- see all memories, filter by tags and status, track progress.
+
+### Manual setup (if you prefer)
+
+Add to `.mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "brain": {
+      "command": "npx",
+      "args": ["shipwright-brain", "mcp", "--dir", "./docs"]
+    }
+  }
+}
+```
+
+## How It Works
+
+Claude creates memories as markdown files with frontmatter. Brain handles everything else.
 
 ```
 docs/
-  decisions/
-    auth-flow/
-      memory.md
-      whiteboard.png
   ideas/
-    ssr-migration/
+    auth-improvements/
+      memory.md          <- the idea + checklist
+      oauth/
+        memory.md        <- sub-idea (nested)
+  decisions/
+    jwt-tokens/
       memory.md
-  format-guides/       <- templates that teach Claude how to write each kind
-    ideas/memory.md
-    bugs/memory.md
-    features/memory.md
-    work/memory.md
+      whiteboard.png     <- attached files live next to the memory
 ```
 
-Each `memory.md`:
+A memory looks like this:
 
 ```markdown
 ---
-title: Auth flow decision
-kind: decisions
-tags: [auth, security]
-refs: [docs/ideas/token-refresh/memory.md]
+title: Auth improvements
+kind: ideas
+tags: [auth, security, urgent]
+refs: [docs/decisions/jwt-tokens/memory.md]
 by: developer
 at: 2025-03-28T10:00:00.000Z
 ---
@@ -57,136 +74,66 @@ at: 2025-03-28T10:00:00.000Z
 - [ ] Update API docs
 ```
 
-## Setup
+Brain reads the checkboxes and knows this is 2/4 = in progress. No status fields to maintain.
 
-```bash
-cd your-project
-npx shipwright-brain init
-```
+## What Brain Does for Claude
 
-Creates `docs/` and adds the MCP config to `.mcp.json`. Next time you open Claude Code, it has memory tools.
+### Guides the workflow
 
-### Browse memories
+When Claude creates a memory, Brain returns:
+- The file path and format guide for that kind of memory
+- A checklist: write content, attach files, keep it updated
+- Similar existing memories (so Claude doesn't create duplicates)
+- Related memories auto-linked as refs
 
-```bash
-npx shipwright-brain ui
-```
+Claude follows the instructions. Brain teaches the format.
 
-Open http://localhost:3111 -- list view with progress badges, auto-refreshes.
+### Prevents duplicates
 
-### Manual MCP config
+Before creating, Brain checks for similar existing memories using embeddings:
+- **90%+ similar** -- blocks creation, suggests merging
+- **60-89% similar** -- creates it, auto-links as related, suggests as potential parent
+- Claude decides the relationship
 
-```json
-{
-  "mcpServers": {
-    "brain": {
-      "command": "npx",
-      "args": ["shipwright-brain", "mcp", "--dir", "./docs"]
-    }
-  }
-}
-```
+### Tracks progress
+
+Checkboxes in content are the progress system:
+- `- [ ]` unchecked, `- [x]` checked
+- Brain derives status: not-started / in-progress / done
+- Sub-memories roll up into parent progress
+- "What should I do next?" finds in-progress then not-started work
+
+### Searches by meaning
+
+Hybrid search: keyword matching + semantic embeddings. "How do we handle authentication?" finds memories about tokens, sessions, and login even without the word "auth". Local model (all-MiniLM-L6-v2), no API calls, CoreML on Mac.
+
+### Keeps the graph consistent
+
+Refs are always bidirectional. Link A to B and B automatically links back to A. Write a markdown link to another memory in content -- Brain detects it and adds the ref. Delete a memory -- back-refs clean up.
+
+### Remembers across restarts
+
+JSONL disk cache for instant startup. Cache restores synchronously (MCP ready immediately), verification runs in background. Embeddings computed once and cached.
+
+## Format Guides
+
+Stored as memories in `docs/format-guides/{kind}/memory.md`. They tell Claude how to write each kind of memory. Auto-created for new kinds.
+
+Edit them to change how your team writes memories -- no code changes needed. Brain appends the 5W context framework (Why, What, Who, How) to every format.
 
 ## MCP Tools
 
-Brain creates and manages. Claude reads and edits files directly.
-
 | Tool | What it does |
 |------|-------------|
-| `create_memory` | Create memory with duplicate detection + auto-refs + format guide |
-| `browse_memories` | Navigate tree -- kinds, memories, sub-memories. Filter by tags and status |
-| `search_memories` | Multi-query keyword search with tag, kind, and status filters |
-| `semantic_search` | Meaning-based search using embeddings -- finds related even without keyword match |
-| `screenshot` | Capture URL via Playwright with optional click sequence |
-| `attach_to_memory` | Copy any file to memory folder + add markdown reference |
-| `get_memory_graph` | Full node/edge connection map |
+| `create_memory` | Create memory with duplicate check, auto-refs, format guide |
+| `browse_memories` | Navigate tree by kind, filter by tags/status, sort, paginate |
+| `search_memories` | Hybrid keyword + semantic search with filters |
+| `screenshot` | Capture URL with optional click sequence before capture |
+| `attach_to_memory` | Attach any file type to a memory |
+| `get_memory_graph` | Full connection graph |
 | `recall_agent_memory` | Load agent learnings from previous sessions |
-| `recall_developer_profile` | Load developer communication preferences |
-| `delete_memory` | Remove + cleanup back-refs |
-
-Claude edits memory content directly at `docs/{kind}/{slug}/memory.md`.
-Brain watches for changes and updates its cache automatically.
-
-## Key Features
-
-### Checkbox Progress Tracking
-
-Memories use `- [ ]` / `- [x]` checkboxes. Brain auto-derives status:
-- **0/N checked** = not started
-- **some/N** = in progress
-- **N/N** = done
-
-Status is filterable in search and browse. No manual status fields needed.
-
-### Aggregate Progress
-
-Sub-memories contribute checkbox counts to their parent. A parent idea with
-3 sub-ideas shows the combined progress across the whole tree.
-
-### Format Guides
-
-Stored as memories in `docs/format-guides/{kind}/memory.md`. They teach Claude
-how to write content for each kind (checklists for ideas/bugs/features, prose
-for knowledge). Editable by the team -- no code changes needed.
-
-### 5W Context Framework
-
-Every memory gets structured context: Why, What, Who, How (universal).
-Format guides add When where it fits. Developers remove what doesn't apply.
-
-### Faceted Search
-
-First page of browse/search results includes facets: tag counts and status
-breakdown for the filtered result set. Enables UI filter chips without
-client-side filtering.
-
-### Semantic Search and Embeddings
-
-Local embeddings via Xenova/all-MiniLM-L6-v2 (CoreML on Mac, CPU elsewhere).
-Model downloads once (~80MB), embeddings computed async and cached to disk.
-`semantic_search` finds memories by meaning -- "how do we handle auth?" matches
-memories about tokens, sessions, and login even without the word "auth".
-
-### Duplicate Detection
-
-`create_memory` automatically checks for similar existing memories:
-- **90%+ similar**: blocks creation, suggests merging with existing memory
-- **60-89% similar**: creates the memory, auto-adds related as refs, suggests as potential parents
-- Claude decides the relationship -- Brain just surfaces the connections
-
-Use `confirm_create: true` to bypass duplicate check.
-
-### Auto-Cleanup on Reorganization
-
-When creating a memory with the same slug as an existing one (e.g. moving
-to a different parent), Brain auto-deletes the old one if it was created
-< 1 hour ago and never edited. Handles reorganization without manual cleanup.
-
-### Bidirectional Refs
-
-Refs sync automatically in both directions. Add a ref in frontmatter or
-link to a `memory.md` in content -- Brain adds the back-ref on the target.
-Remove a ref -- Brain cleans up the other side. The graph stays consistent.
-
-### Disk Cache
-
-JSONL cache in `.cache/` for instant MCP startup. Cache restored synchronously,
-verification deferred to background. Embeddings persisted in cache -- computed
-once, reused across restarts.
-
-### Screenshot with Interaction
-
-The screenshot tool accepts a `clicks` param -- a list of CSS selectors
-clicked in sequence before capture. Enables capturing open menus, modals,
-or specific UI states.
-
-## Kinds
-
-Kinds are just folder names. Use whatever makes sense:
-
-`decisions`, `ideas`, `bugs`, `patterns`, `learnings`, `features`, `personas`, `architecture`, `work`
-
-Or invent your own. The system doesn't care -- it's just folders.
+| `recall_developer_profile` | Load developer preferences |
+| `delete_memory` | Remove + cleanup refs |
 
 ## API
 
@@ -194,13 +141,13 @@ All endpoints return JSON with CORS headers.
 
 | Endpoint | Params | Description |
 |----------|--------|-------------|
-| `GET /api/browse` | `path`, `tags`, `status`, `limit`, `offset` | Browse memory tree |
-| `GET /api/search` | `q`, `tags`, `kind`, `status`, `limit`, `offset` | Keyword search |
-| `GET /api/semantic-search` | `q`, `tags`, `kind`, `status`, `limit`, `offset` | Semantic search |
-| `GET /api/memory` | `f` (memory_file) | Full detail with rich refs and children |
+| `GET /api/browse` | `path`, `tags`, `status`, `sort`, `limit`, `offset` | Browse memory tree |
+| `GET /api/search` | `q`, `tags`, `kind`, `status`, `sort`, `limit`, `offset` | Hybrid search |
+| `GET /api/memory` | `f` (memory_file) | Full detail with rich refs/children |
 | `GET /api/graph` | -- | Full reference graph |
 | `GET /api/overview` | -- | Stats, kinds, tags |
 | `GET /file` | `p` (file path) | Serve attachments |
 
-Browse and search return pagination metadata (`total`, `limit`, `offset`, `hasMore`)
-and facets on the first page (`tags` with counts, `status` breakdown).
+First page includes facets (tag counts + status breakdown) and pagination metadata.
+
+Sort: `?sort=modified:desc` (default), `modified:asc`, `title:asc`, `title:desc`, `created:asc`, `created:desc`.
