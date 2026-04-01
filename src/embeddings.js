@@ -55,6 +55,11 @@ export async function embedBatch(texts) {
   return results;
 }
 
+/** Pre-download the model so first search isn't slow. */
+export async function warmup() {
+  await getPipeline();
+}
+
 export function cosineSimilarity(a, b) {
   if (!a || !b || a.length !== b.length) return 0;
   let dot = 0, na = 0, nb = 0;

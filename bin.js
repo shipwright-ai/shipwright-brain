@@ -23,6 +23,7 @@ function flag(name, fallback) {
 
 const docsDir = flag("dir", "./docs");
 const port = flag("port", "3111");
+const uiPort = flag("ui-port", "5173");
 
 // Pass config to imported modules via env
 process.env.BRAIN_DOCS_DIR = path.resolve(docsDir);
@@ -68,6 +69,16 @@ if (command === "init") {
     console.log(`⚠ Playwright install failed — screenshot tool won't work until you run: npx playwright install chromium`);
   }
 
+  // Pre-download embedding model so first search isn't slow
+  console.log(`  Downloading embedding model (for semantic search)...`);
+  try {
+    const { warmup } = await import("./src/embeddings.js");
+    await warmup();
+    console.log(`✓ Embedding model ready`);
+  } catch {
+    console.log(`⚠ Embedding model download failed — semantic search will download on first use`);
+  }
+
   console.log(`
 Shipwright Brain is ready.
 
@@ -75,10 +86,8 @@ Shipwright Brain is ready.
   MCP:   auto-starts when Claude Code needs memory tools
   UI:    npx github:shipwright-ai/shipwright-brain ui
 
-Memories organize by kind:
-  ${absDocsDir}/decisions/  ${absDocsDir}/ideas/
-  ${absDocsDir}/features/   ${absDocsDir}/personas/
-  ... any kind you want
+Next: restart Claude Code, then brain tools are available.
+Browse memories: npx github:shipwright-ai/shipwright-brain ui
 `);
 
 } else if (command === "mcp") {
@@ -86,7 +95,15 @@ Memories organize by kind:
   await import("./src/mcp.js");
 
 } else if (command === "ui") {
-  // --- WEB UI (developer launches this) ---
+  // --- WEB UI: Brain API + pre-built SvelteKit UI ---
+  // Start Brain HTTP API first
+  await import("./src/http.js");
+  // Download and start the pre-built brain-ui
+  const { startUI } = await import("./src/ui-server.js");
+  await startUI({ brainPort: parseInt(port), uiPort: parseInt(uiPort) });
+
+} else if (command === "api") {
+  // --- API only (no UI) ---
   await import("./src/http.js");
 
 } else {
@@ -95,9 +112,10 @@ Memories organize by kind:
 Shipwright Brain — memory for AI agents
 
 Commands:
-  npx github:shipwright-ai/shipwright-brain init [--dir docs]              Set up brain in current project
-  npx github:shipwright-ai/shipwright-brain ui [--dir docs] [--port 3111]  Browse memories in the browser
-  npx github:shipwright-ai/shipwright-brain mcp [--dir docs]               Run MCP server (Claude Code does this)
+  init [--dir docs]                         Set up brain in current project
+  ui [--dir docs] [--port 3111]             Brain API + web UI
+  api [--dir docs] [--port 3111]            Brain API only (no UI)
+  mcp [--dir docs]                          MCP server (Claude Code does this)
 
 Quick start:
   npx github:shipwright-ai/shipwright-brain init

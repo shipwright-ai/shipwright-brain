@@ -46,20 +46,21 @@ Add to `.mcp.json` in your project root:
 
 ## Browse Your Memories
 
-Use [Shipwright UI](https://github.com/shipwright-ai/shipwright-ui) to see what Claude sees:
+```bash
+npx github:shipwright-ai/shipwright-brain ui
+```
+
+Starts Brain API on http://localhost:3111 and [Shipwright UI](https://github.com/shipwright-ai/shipwright-ui) on http://localhost:5173. The UI is downloaded automatically on first run (~2MB, cached in `~/.shipwright/brain-ui/`).
+
+Options:
 
 ```bash
-npx github:shipwright-ai/shipwright-ui
+npx github:shipwright-ai/shipwright-brain ui --port 4000          # Brain API on custom port
+npx github:shipwright-ai/shipwright-brain ui --ui-port 8080       # UI on custom port
+npx github:shipwright-ai/shipwright-brain api                     # API only, no UI
 ```
 
-Opens http://localhost:3111 — browse memories, filter by tags and status, track progress.
-
-Or add a Makefile target (Shipwright setup does this automatically):
-
-```makefile
-brain-ui:
-	npx github:shipwright-ai/shipwright-ui
-```
+Init downloads everything upfront — Playwright Chromium (~150MB, for screenshots) and the embedding model (~80MB, for semantic search) — so there are no surprise delays during use.
 
 ## What Makes Brain Different
 
