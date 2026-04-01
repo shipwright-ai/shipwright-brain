@@ -34,15 +34,17 @@ if (command === "init") {
   fs.mkdirSync(absDocsDir, { recursive: true });
   console.log(`✓ Created docs directory: ${absDocsDir}`);
 
-  // Add MCP config to .mcp.json (project-scoped MCP servers)
-  const mcpPath = path.resolve(".mcp.json");
+  // Add MCP config to .claude/mcp.json (project-scoped MCP servers)
+  const claudeDir = path.resolve(".claude");
+  fs.mkdirSync(claudeDir, { recursive: true });
+  const mcpPath = path.resolve(".claude/mcp.json");
 
   let mcpConfig = {};
   if (fs.existsSync(mcpPath)) {
     try {
       mcpConfig = JSON.parse(fs.readFileSync(mcpPath, "utf-8"));
     } catch {
-      console.log("⚠ Could not parse .mcp.json — creating new");
+      console.log("⚠ Could not parse .claude/mcp.json — creating new");
     }
   }
 
@@ -54,7 +56,7 @@ if (command === "init") {
   };
 
   fs.writeFileSync(mcpPath, JSON.stringify(mcpConfig, null, 2), "utf-8");
-  console.log(`✓ Added MCP server to .mcp.json`);
+  console.log(`✓ Added MCP server to .claude/mcp.json`);
 
   // Install Playwright Chromium for screenshot tool
   console.log(`  Installing Playwright Chromium (for screenshots)...`);
