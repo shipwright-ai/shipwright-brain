@@ -4,7 +4,7 @@
  * memory_file is the universal key everywhere.
  * It's a real file path: "docs/decisions/auth-flow/memory.md"
  *
- * npx shipwright-brain mcp [docs-dir]
+ * npx github:shipwright-ai/shipwright-brain mcp [docs-dir]
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

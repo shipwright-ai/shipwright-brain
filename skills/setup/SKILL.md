@@ -24,7 +24,7 @@ Quick setup. One question at a time. Suggest defaults, let user override.
      "mcpServers": {
        "brain": {
          "command": "npx",
-         "args": ["shipwright-brain", "mcp", "--dir", "<docs-dir>", "--port", "<port>"]
+         "args": ["github:shipwright-ai/shipwright-brain", "mcp", "--dir", "<docs-dir>", "--port", "<port>"]
        }
      }
    }
@@ -33,6 +33,6 @@ Quick setup. One question at a time. Suggest defaults, let user override.
 4. **Done** — tell the user:
    - Memories will be stored in `<docs-dir>`
    - HTTP API at `http://localhost:<port>`
-   - Browse memories: `npx shipwright-brain ui --port <port>` or `npx shipwright-ui`
+   - Browse memories: `npx github:shipwright-ai/shipwright-brain ui --port <port>` or `npx github:shipwright-ai/shipwright-ui`
    - Brain tools available as `brain.create_memory`, `brain.browse_memories`, etc.
    - Restart Claude Code for MCP changes to take effect

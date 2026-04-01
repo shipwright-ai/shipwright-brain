@@ -3,9 +3,9 @@
 /**
  * Shipwright Brain CLI
  *
- * npx shipwright-brain init [--dir docs]         — set up brain in a project
- * npx shipwright-brain mcp [--dir docs]          — run MCP server (Claude Code manages this)
- * npx shipwright-brain ui [--dir docs] [--port 3111] — run the web UI
+ * npx github:shipwright-ai/shipwright-brain init [--dir docs]         — set up brain in a project
+ * npx github:shipwright-ai/shipwright-brain mcp [--dir docs]          — run MCP server (Claude Code manages this)
+ * npx github:shipwright-ai/shipwright-brain ui [--dir docs] [--port 3111] — run the web UI
  */
 
 import fs from "fs";
@@ -50,7 +50,7 @@ if (command === "init") {
 
   mcpConfig.mcpServers["brain"] = {
     command: "npx",
-    args: ["shipwright-brain", "mcp", "--dir", docsDir],
+    args: ["github:shipwright-ai/shipwright-brain", "mcp", "--dir", docsDir],
   };
 
   fs.writeFileSync(mcpPath, JSON.stringify(mcpConfig, null, 2), "utf-8");
@@ -71,7 +71,7 @@ Shipwright Brain is ready.
 
   Docs:  ${absDocsDir}
   MCP:   auto-starts when Claude Code needs memory tools
-  UI:    npx shipwright-brain ui
+  UI:    npx github:shipwright-ai/shipwright-brain ui
 
 Memories organize by kind:
   ${absDocsDir}/decisions/  ${absDocsDir}/ideas/
@@ -93,12 +93,12 @@ Memories organize by kind:
 Shipwright Brain — memory for AI agents
 
 Commands:
-  npx shipwright-brain init [--dir docs]              Set up brain in current project
-  npx shipwright-brain ui [--dir docs] [--port 3111]  Browse memories in the browser
-  npx shipwright-brain mcp [--dir docs]               Run MCP server (Claude Code does this)
+  npx github:shipwright-ai/shipwright-brain init [--dir docs]              Set up brain in current project
+  npx github:shipwright-ai/shipwright-brain ui [--dir docs] [--port 3111]  Browse memories in the browser
+  npx github:shipwright-ai/shipwright-brain mcp [--dir docs]               Run MCP server (Claude Code does this)
 
 Quick start:
-  npx shipwright-brain init
-  npx shipwright-brain ui
+  npx github:shipwright-ai/shipwright-brain init
+  npx github:shipwright-ai/shipwright-brain ui
 `);
 }

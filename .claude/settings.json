@@ -3,7 +3,7 @@
     "shipwright-brain": {
       "command": "npx",
       "args": [
-        "shipwright-brain",
+        "github:shipwright-ai/shipwright-brain",
         "mcp",
         "./docs"
       ]

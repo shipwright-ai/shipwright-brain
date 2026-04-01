@@ -24,7 +24,7 @@ If you're using [Shipwright](https://github.com/shipwright-ai/shipwright), Brain
 
 ```bash
 cd your-project
-npx shipwright-brain init
+npx github:shipwright-ai/shipwright-brain init
 ```
 
 Creates `docs/` and wires Brain into `.mcp.json`. Restart Claude Code for MCP to pick it up.
@@ -38,7 +38,7 @@ Add to `.mcp.json` in your project root:
   "mcpServers": {
     "brain": {
       "command": "npx",
-      "args": ["shipwright-brain", "mcp", "--dir", "./docs"]
+      "args": ["github:shipwright-ai/shipwright-brain", "mcp", "--dir", "./docs"]
     }
   }
 }
