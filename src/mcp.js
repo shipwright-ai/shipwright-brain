@@ -22,10 +22,14 @@ const server = new McpServer({
 });
 
 // Dynamic resource — shows existing kinds, counts, and recent memories
-server.resource(
+server.registerResource(
   "brain-overview",
   "brain://overview",
-  "Current state of the brain — existing kinds, tags, memory counts. Read this first.",
+  {
+    title: "Brain Overview",
+    description: "Current state of the brain — existing kinds, tags, memory counts. Read this first.",
+    mimeType: "text/markdown",
+  },
   async () => {
     const kindsList = brain.getKinds();
     let text = `# Brain Overview\n\n`;
